@@ -464,3 +464,26 @@ button.warn { border-color: var(--sel); color: var(--sel); }
 }
 .empty-state h2 { color: var(--fg-dim); font-weight: 500; margin: 0; }
 .empty-state .row { display: flex; gap: var(--sp-2); }
+
+.menuwrap { position: relative; display: inline-flex; }
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.menu button {
+  border: none;
+  border-radius: 0;
+  background: none;
+  text-align: left;
+  padding: var(--sp-2) var(--sp-3);
+}
+.menu button:hover { background: var(--row-hover); }

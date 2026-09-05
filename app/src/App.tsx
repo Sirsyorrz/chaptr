@@ -10,6 +10,7 @@ import { hoursMins, type JobProgress } from "./types";
 
 export default function App() {
   const [showTracks, setShowTracks] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const s = useStore();
 
   useEffect(() => {
@@ -32,8 +33,7 @@ export default function App() {
       const typing = tag === "INPUT" || tag === "TEXTAREA";
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
-        if (s.dirty) s.save();
-        if (s.project?.file) s.saveProject();
+        save();
       } else if (!typing && e.key === "/") {
         e.preventDefault();
         document.querySelector<HTMLInputElement>(".search")?.focus();
@@ -55,7 +55,11 @@ export default function App() {
     if (typeof f === "string") s.openFile_(f);
   };
 
-  const saveAs = async () => {
+  /// One Save: keeps any chaptr edits, then writes the project file, asking
+  /// for a location the first time.
+  const save = async () => {
+    if (s.dirty) await s.save();
+    if (s.project?.file) return s.saveProject();
     const f = await saveDialog({
       title: "Save chaptr project",
       defaultPath: `${s.project?.name ?? "project"}.chaptr`,
@@ -65,11 +69,13 @@ export default function App() {
   };
 
   const pickFolder = async () => {
+    setImportOpen(false);
     const dir = await openDialog({ directory: true, title: "Pick a folder of recordings" });
     if (typeof dir === "string") s.openSources([dir]);
   };
 
   const pickClips = async () => {
+    setImportOpen(false);
     const files = await openDialog({
       multiple: true,
       title: "Pick one or more clips",
@@ -89,9 +95,18 @@ export default function App() {
           {s.project ? s.project.name : "no project"}
           {s.project?.unsaved && <b className="dot">•</b>}
         </span>
-        <button onClick={pickFolder} title="Import a whole folder">Folder…</button>
-        <button onClick={pickClips} title="Import individual clips">Clips…</button>
-        <button onClick={openProjectFile} title="Open a saved .chaptr project">Open…</button>
+        <div className="menuwrap">
+          <button onClick={() => setImportOpen(!importOpen)} title="Add footage">
+            Import
+          </button>
+          {importOpen && (
+            <div className="menu" onMouseLeave={() => setImportOpen(false)}>
+              <button onClick={pickFolder}>Whole folder</button>
+              <button onClick={pickClips}>One or more clips</button>
+            </div>
+          )}
+        </div>
+        <button onClick={openProjectFile} title="Open a saved chaptr project">Open</button>
         {s.project && (
           <button
             onClick={() => s.confirmDiscard() && s.closeProject(false)}
@@ -100,7 +115,6 @@ export default function App() {
             Close
           </button>
         )}
-        <button onClick={s.rescan} disabled={!s.project || !!s.busy}>Scan</button>
         <button onClick={() => s.runJob("transcribe")} disabled={!lib || !!s.busy}>
           Transcribe
         </button>
@@ -108,7 +122,7 @@ export default function App() {
           Find chaptrs
         </button>
         {s.busy && <button className="warn" onClick={s.cancelJob}>Stop</button>}
-        <button onClick={() => setShowTracks(true)} disabled={!lib}>Tracks…</button>
+        <button onClick={() => setShowTracks(true)} disabled={!lib}>Tracks</button>
         <input
           className="search"
           placeholder="search chaptrs  ( / )"
@@ -120,18 +134,14 @@ export default function App() {
           starred
         </label>
         <span className="spacer" />
-        <button onClick={s.save} disabled={!s.dirty} title="Keep chaptr edits">
-          Apply edits
-        </button>
         <button
-          className={s.project?.unsaved ? "accent" : ""}
-          onClick={() => (s.project?.file ? s.saveProject() : saveAs())}
+          className={s.project?.unsaved || s.dirty ? "accent" : ""}
+          onClick={save}
           disabled={!s.project || !!s.busy}
           title={s.project?.file ?? "Not saved yet"}
         >
-          Save project{s.project?.unsaved ? " •" : ""}
+          Save
         </button>
-        <button onClick={saveAs} disabled={!s.project || !!s.busy}>Save as…</button>
       </div>
 
       {s.missing.length > 0 && (
@@ -168,9 +178,9 @@ export default function App() {
           <h2>No project open</h2>
           <p>Import footage to start, or open a saved .chaptr project.</p>
           <div className="row">
-            <button onClick={pickFolder}>Import folder…</button>
-            <button onClick={pickClips}>Import clips…</button>
-            <button onClick={openProjectFile}>Open project…</button>
+            <button onClick={pickFolder}>Import a folder</button>
+            <button onClick={pickClips}>Import clips</button>
+            <button onClick={openProjectFile}>Open a project</button>
           </div>
         </div>
       )}

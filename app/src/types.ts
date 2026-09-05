@@ -2,13 +2,23 @@ export type Role = "mixed" | "game" | "mic" | "voice" | "ignore" | "unknown";
 
 export const ROLES: Role[] = ["mixed", "game", "mic", "voice", "ignore", "unknown"];
 
+/** Wording the user recognises; the stored values stay as they are. */
+export const ROLE_LABEL: Record<Role, string> = {
+  mixed: "everything mixed",
+  game: "game audio",
+  mic: "me (my mic)",
+  voice: "friends (Discord)",
+  ignore: "ignore",
+  unknown: "not sure",
+};
+
 export const ROLE_HELP: Record<Role, string> = {
-  mixed: "Everything mixed together",
-  game: "Game and system audio — never transcribed",
-  mic: "The person who made the recording",
-  voice: "Everyone else, e.g. a Discord call",
-  ignore: "Skip this track",
-  unknown: "Not identified — pick one",
+  mixed: "Game, your mic and your friends all in one track",
+  game: "Game and system sound only. Never transcribed — it just produces gibberish",
+  mic: "Only you, the person who recorded this",
+  voice: "Only the other people in the call, e.g. Discord",
+  ignore: "Skip this track entirely",
+  unknown: "Not identified. Pick what it is",
 };
 
 export interface Track {

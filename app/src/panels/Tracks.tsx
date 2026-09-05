@@ -1,5 +1,5 @@
 import { useStore } from "../state/store";
-import { ROLES, ROLE_HELP, type Role } from "../types";
+import { ROLES, ROLE_HELP, ROLE_LABEL, type Role } from "../types";
 
 /**
  * Which audio track is what. Detection proposes, the user decides — one folder
@@ -23,16 +23,17 @@ export function Tracks({ onClose }: { onClose: () => void }) {
           <span>Audio tracks</span>
           <span className="spacer" />
           <button onClick={detect} disabled={!!busy}>
-            {busy ? busy : layouts.length ? "Detect again" : "Detect"}
+            {busy ? busy : layouts.length ? "Detect again" : "Detect tracks"}
           </button>
           <button onClick={onClose}>Close</button>
         </div>
 
         <div className="sheet-scroll">
           <p className="note">
-            chaptr listens to a minute of each track and guesses. It can tell game
-            audio apart reliably, but nothing in the audio says whether a voice
-            track is your microphone or your friends — pick those yourself.
+            chaptr listens to a minute of each track and guesses. It spots game
+            audio reliably, but nothing in the sound itself says whether a voice
+            track is you or your friends, so check anything marked "not sure".
+            Getting this right is what lets chaptrs say who did what.
           </p>
 
           {!layouts.length && (
@@ -67,7 +68,7 @@ export function Tracks({ onClose }: { onClose: () => void }) {
                       title={ROLE_HELP[role]}
                     >
                       {ROLES.map((r) => (
-                        <option key={r} value={r}>{r}</option>
+                        <option key={r} value={r}>{ROLE_LABEL[r]}</option>
                       ))}
                     </select>
                     <span className="tsample dim" title={t.sample}>

@@ -154,6 +154,9 @@ export const useStore = create<State>((set, get) => ({
       const p = await invoke<Project>("open_project", { sources });
       set({ projects: await invoke<Project[]>("list_projects") });
       await get().openProject(p.id);
+      // Importing footage always means scanning it; there is nothing to look
+      // at until we have.
+      if (!get().library) await get().rescan();
     } catch (e) {
       set({ busy: "" });
       get().say(String(e), "warn");
