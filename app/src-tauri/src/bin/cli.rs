@@ -10,6 +10,7 @@ use chaptr::sidecar::Sidecars;
 use chaptr::workspace::{self, Workspace};
 use chaptr::beats::{BeatConfig, Llm};
 use chaptr::model::Beat;
+use chaptr::tracks::{self, Layout, Settings};
 use chaptr::{audio, beats, scan};
 
 fn hms(secs: f64) -> String {
@@ -62,39 +63,46 @@ fn cmd_scan(folder: &str, gap: f64) -> Result<()> {
     Ok(())
 }
 
-/// Works out which audio track carries conversation, by transcribing short
-/// samples of each. Runs once per recording layout, not once per file.
+/// Works out what each audio track carries, once per distinct layout rather
+/// than once per recording.
 fn cmd_tracks(folder: &str) -> Result<()> {
     let sc = Sidecars::discover();
     let (ws, lib) = load(folder)?;
     let cfg = models();
+    let mut settings: Settings =
+        workspace::maybe_json(&ws.settings()).unwrap_or_default();
 
-    let rec: &Recording = lib
-        .recordings
-        .iter()
-        .max_by(|a, b| a.duration.total_cmp(&b.duration))
-        .unwrap();
-    println!("probing {} ({} tracks)\n", rec.name, rec.tracks.len());
-
-    let spots = [0.25, 0.5, 0.75];
-    let window = 60.0;
-    for (i, t) in rec.tracks.iter().enumerate() {
-        let mut segs = Vec::new();
-        for f in spots {
-            let tmp = ws.scratch(&format!("probe{i}"));
-            audio::sample_track(&sc, rec, i, rec.duration * f, window, &tmp)?;
-            segs.extend(asr::transcribe(&sc, &cfg, &tmp, "probe", |_| {})?);
-            let _ = std::fs::remove_file(&tmp);
+    let mut out = Vec::new();
+    for (sig, rec, count) in tracks::layouts(&lib) {
+        println!("layout {sig:<28} {count:>4} recordings   probing {}", rec.name);
+        let probes = tracks::probe_layout(&sc, &cfg, &ws, rec)?;
+        for p in &probes {
+            println!(
+                "  track {} [{:<14}] {:>5.0} wpm  {:?}{}  {}",
+                p.index,
+                p.name,
+                p.words_per_minute,
+                p.role,
+                if p.confident { "" } else { " (confirm)" },
+                p.sample.chars().take(60).collect::<String>()
+            );
         }
-        let score = asr::speech_score(&segs, window * spots.len() as f64);
-        let sample: String = segs.iter().map(|s| s.text.as_str()).collect::<Vec<_>>().join(" ");
-        println!(
-            "track {i} [{}] {:>6.0} wpm  {}",
-            t.name,
-            score,
-            &sample.chars().take(90).collect::<String>()
-        );
+        settings
+            .roles
+            .insert(sig.clone(), probes.iter().map(|p| p.role).collect());
+        out.push(Layout {
+            signature: sig,
+            track_count: probes.len(),
+            recordings: count,
+            example: rec.name.clone(),
+            tracks: probes,
+        });
+        println!();
     }
+
+    workspace::write_json(&ws.settings(), &settings)?;
+    println!("wrote {}", ws.settings().display());
+    println!("edit roles there, or in the app, before transcribing");
     Ok(())
 }
 
