@@ -6,7 +6,7 @@ import sys
 from datetime import timedelta
 from pathlib import Path
 
-from . import config, detect, pipeline
+from . import config, detect, markers as markers_mod, pipeline, ui
 from .audio import extract_track, loudness
 from .probe import Clip, Track, build_manifest
 
@@ -147,6 +147,41 @@ def cmd_show(args, cfg):
         print(f"[{hms(u['start'])}] {who:<12} {u['text']}")
 
 
+def cmd_mark(args, cfg):
+    out_dir = Path(args.out)
+    clip_dir = out_dir / "clips"
+    files = sorted(clip_dir.glob("*.json"))
+    if args.clip:
+        files = [f for f in files if args.clip in f.stem]
+    if not files:
+        sys.exit("no transcripts found — run `transcribe` first")
+
+    mcfg = {**cfg, **{k: v for k, v in vars(args).items() if v is not None}}
+    for path in files:
+        dest = out_dir / "markers" / f"{path.stem}.json"
+        if dest.exists() and not args.force:
+            print(f"skip {path.stem} (already marked)")
+            continue
+        data = json.loads(path.read_text())
+        print(f"\n{Path(data['clip']).name}  {hms(data['duration'])}")
+
+        def progress(i, n, start, stop, error=None):
+            tail = f"  ERROR {error}" if error else ""
+            print(f"  window {i}/{n}  {hms(start)}–{hms(stop)}{tail}", flush=True)
+
+        result = markers_mod.generate(data["timeline"], mcfg, progress)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(json.dumps({"clip": data["clip"], "markers": result}, indent=1))
+        llm = sum(1 for m in result if m["source"] == "llm")
+        print(f"  {len(result)} markers ({llm} from model, {len(result) - llm} gap-fill)")
+        for m in result[:8]:
+            print(f"    [{m['t']}] {m['tag']:<9} {m['title']}")
+
+
+def cmd_ui(args, cfg):
+    ui.serve(Path(args.out), args.port)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="chaptr")
     ap.add_argument("--config", type=Path)
@@ -175,6 +210,19 @@ def main(argv=None):
     p.add_argument("--force", action="store_true")
     p.add_argument("--keep-audio", action="store_true")
     p.set_defaults(fn=cmd_transcribe)
+
+    p = sub.add_parser("mark", help="LLM pass over transcripts to produce markers")
+    p.add_argument("--clip")
+    p.add_argument("--model")
+    p.add_argument("--window-minutes", type=float)
+    p.add_argument("--min-gap-seconds", type=float)
+    p.add_argument("--max-gap-seconds", type=float)
+    p.add_argument("--force", action="store_true")
+    p.set_defaults(fn=cmd_mark)
+
+    p = sub.add_parser("ui", help="serve the marker review UI")
+    p.add_argument("--port", type=int, default=8756)
+    p.set_defaults(fn=cmd_ui)
 
     p = sub.add_parser("show", help="print a clip transcript")
     p.add_argument("clip")

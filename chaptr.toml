@@ -7,3 +7,10 @@ max_speakers = 6
 # OBS track layout for new recordings.
 [roles.by_count]
 "4" = ["mixed", "game", "mic", "discord"]
+
+model = "qwen3:30b-a3b"
+ollama_host = "http://localhost:11434"
+window_minutes = 10
+overlap_minutes = 1
+min_gap_seconds = 45
+max_gap_seconds = 300
