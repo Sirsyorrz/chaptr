@@ -22,6 +22,7 @@ interface State {
   missing: string[];
 
   job: JobProgress | null;
+  runId: number;
   files: FileStatus[];
   viewing: string | null;
   tab: "chaptrs" | "files";
@@ -67,6 +68,7 @@ export const useStore = create<State>((set, get) => ({
   statusKind: "",
   missing: [],
   job: null,
+  runId: 0,
   files: [],
   viewing: null,
   tab: "chaptrs",
@@ -100,6 +102,8 @@ export const useStore = create<State>((set, get) => ({
         if (p) get().onJob(p);
         if (!get().busy) clearInterval(poll);
       }, 500);
+      // Safety net: a job that never reports must not wedge the UI forever.
+      setTimeout(() => clearInterval(poll), 1000 * 60 * 60 * 12);
     } catch (e) {
       set({ busy: "" });
       get().say(String(e), "warn");
@@ -113,7 +117,9 @@ export const useStore = create<State>((set, get) => ({
 
   /// Streamed from the backend while a pass runs.
   onJob: (p) => {
-    set({ job: p });
+    // Ignore anything left over from an earlier run.
+    if (p.run < get().runId) return;
+    set({ job: p, runId: p.run });
     if (p.error) get().say(p.error, "warn");
     if (!p.done) return;
     set({ busy: "", job: null });

@@ -121,6 +121,7 @@ export const hoursMins = (s: number): string => {
 };
 
 export interface JobProgress {
+  run: number;
   stage: string;
   index: number;
   total: number;

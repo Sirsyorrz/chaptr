@@ -28,6 +28,7 @@ pub struct App {
     pub cancel: jobs::Cancel,
     pub running: Mutex<bool>,
     pub last_job: Mutex<Option<jobs::Progress>>,
+    pub run: Mutex<u64>,
 }
 
 fn models() -> AsrConfig {
@@ -196,6 +197,10 @@ fn start_job(
         *running = true;
     }
     app.cancel.reset();
+    // Drop the previous run's final state, or the first poll of this one reads
+    // a stale `done` and the UI stops watching before any work happens.
+    *app.run.lock().unwrap() += 1;
+    *app.last_job.lock().unwrap() = None;
 
     let cancel = jobs::Cancel(app.cancel.0.clone());
     let asr = models();
@@ -207,23 +212,15 @@ fn start_job(
             "chaptrs" => jobs::chaptrs_all(&app_handle, &id, llm, &cancel).map(|_| ()),
             other => Err(anyhow::anyhow!("unknown stage {other}")),
         };
-        if let Err(e) = result {
-            let _ = app_handle.emit(
-                "job",
-                jobs::Progress {
-                    stage,
-                    index: 0,
-                    total: 0,
-                    name: String::new(),
-                    fraction: 0.0,
-                    done: true,
-                    cancelled: false,
-                    message: String::new(),
-                    error: Some(e.to_string()),
-                },
-            );
-        }
         let state: State<App> = app_handle.state();
+        if let Err(e) = result {
+            let mut p = jobs::Progress::new(&stage);
+            p.run = *state.run.lock().unwrap();
+            p.done = true;
+            p.error = Some(e.to_string());
+            *state.last_job.lock().unwrap() = Some(p.clone());
+            let _ = app_handle.emit("job", &p);
+        }
         *state.running.lock().unwrap() = false;
     });
     Ok(())

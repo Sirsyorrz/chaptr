@@ -18,6 +18,9 @@ use crate::workspace;
 /// file of how many, because a hundred-hour pass runs for hours.
 #[derive(Debug, Clone, Serialize)]
 pub struct Progress {
+    /// Increments per run. Without it the UI cannot tell a fresh update from
+    /// the leftover `done` of the previous job and stops watching immediately.
+    pub run: u64,
     pub stage: String,
     pub index: usize,
     pub total: usize,
@@ -31,8 +34,9 @@ pub struct Progress {
 }
 
 impl Progress {
-    fn new(stage: &str) -> Self {
+    pub fn new(stage: &str) -> Self {
         Self {
+            run: 0,
             stage: stage.into(),
             index: 0,
             total: 0,
@@ -65,10 +69,12 @@ impl Cancel {
 /// silent failure away from a job that runs invisibly for an hour.
 fn emit(app: &AppHandle, p: &Progress) {
     use tauri::Manager;
+    let mut p = p.clone();
     if let Some(state) = app.try_state::<crate::App>() {
+        p.run = *state.run.lock().unwrap();
         *state.last_job.lock().unwrap() = Some(p.clone());
     }
-    let _ = app.emit("job", p);
+    let _ = app.emit("job", &p);
 }
 
 /// Transcribes every recording that does not already have a transcript, so an
