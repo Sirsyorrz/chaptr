@@ -334,6 +334,17 @@ fn open_project_file(path: String) -> Result<Project, String> {
     project::put_project(p).map_err(|e| e.to_string())
 }
 
+/// Closes the current project and clears its working cache. One project is
+/// open at a time, so nothing is left behind for a project nobody is editing.
+#[tauri::command]
+fn close_project(app: State<App>, id: String, discard: bool) -> Result<(), String> {
+    *app.library.lock().unwrap() = None;
+    if discard {
+        project::forget(&id, true).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn check_sidecars() -> Vec<String> {
     let mut missing = Sidecars::discover().missing();
@@ -375,6 +386,7 @@ pub fn run() {
             job_status,
             file_status,
             save_project,
+            close_project,
             open_project_file,
             check_sidecars
         ])

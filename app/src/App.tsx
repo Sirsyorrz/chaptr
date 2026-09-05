@@ -85,22 +85,21 @@ export default function App() {
     <div className="app">
       <div className="topbar">
         <span className="brand">chaptr</span>
-        <select
-          className="projsel"
-          value={s.project?.id ?? ""}
-          onChange={(e) => s.openProject(e.target.value)}
-          title={s.project?.sources.join("\n") || "No project"}
-        >
-          {!s.projects.length && <option value="">no projects</option>}
-          {s.projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}{p.recordings ? ` · ${p.recordings} clips` : ""}
-            </option>
-          ))}
-        </select>
+        <span className="title" title={s.project?.sources.join("\n") || ""}>
+          {s.project ? s.project.name : "no project"}
+          {s.project?.unsaved && <b className="dot">•</b>}
+        </span>
         <button onClick={pickFolder} title="Import a whole folder">Folder…</button>
         <button onClick={pickClips} title="Import individual clips">Clips…</button>
         <button onClick={openProjectFile} title="Open a saved .chaptr project">Open…</button>
+        {s.project && (
+          <button
+            onClick={() => s.confirmDiscard() && s.closeProject(false)}
+            title="Close this project"
+          >
+            Close
+          </button>
+        )}
         <button onClick={s.rescan} disabled={!s.project || !!s.busy}>Scan</button>
         <button onClick={() => s.runJob("transcribe")} disabled={!lib || !!s.busy}>
           Transcribe
@@ -164,6 +163,19 @@ export default function App() {
         </div>
       )}
 
+      {!s.project && (
+        <div className="empty-state">
+          <h2>No project open</h2>
+          <p>Import footage to start, or open a saved .chaptr project.</p>
+          <div className="row">
+            <button onClick={pickFolder}>Import folder…</button>
+            <button onClick={pickClips}>Import clips…</button>
+            <button onClick={openProjectFile}>Open project…</button>
+          </div>
+        </div>
+      )}
+
+      {s.project && (
       <div className="main">
         <div className="left">
           <div className="tabs">
@@ -178,6 +190,7 @@ export default function App() {
         </div>
         <div className="right"><Transcript /></div>
       </div>
+      )}
 
       <div className="statusbar">
         <span>

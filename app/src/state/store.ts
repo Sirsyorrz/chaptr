@@ -35,6 +35,8 @@ interface State {
   onJob: (p: JobProgress) => void;
   openSources: (sources: string[]) => Promise<void>;
   openProject: (id: string) => Promise<void>;
+  closeProject: (discard: boolean) => Promise<void>;
+  confirmDiscard: () => boolean;
   forget: (id: string, deleteData: boolean) => Promise<void>;
   saveProject: (path?: string) => Promise<void>;
   openFile_: (path: string) => Promise<void>;
@@ -146,6 +148,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   openSources: async (sources) => {
+    if (!get().confirmDiscard()) return;
     set({ busy: "opening" });
     try {
       const p = await invoke<Project>("open_project", { sources });
@@ -176,6 +179,26 @@ export const useStore = create<State>((set, get) => ({
     }
   },
 
+  /// One project at a time: warn before replacing unsaved work.
+  confirmDiscard: () => {
+    const p = get().project;
+    if (!p?.unsaved) return true;
+    return confirm(
+      `"${p.name}" has work that is not in a saved file yet.\n\nClose it anyway?`,
+    );
+  },
+
+  closeProject: async (discard) => {
+    const p = get().project;
+    if (p) await invoke("close_project", { id: p.id, discard });
+    localStorage.removeItem(PROJECT_KEY);
+    set({
+      project: null, library: null, settings: null, layouts: [], chaptrs: [],
+      files: [], transcript: null, selected: null, viewing: null,
+      dirty: false, query: "", status: "", statusKind: "",
+    });
+  },
+
   saveProject: async (path) => {
     const p = get().project;
     if (!p) return;
@@ -197,6 +220,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   openFile_: async (path) => {
+    if (!get().confirmDiscard()) return;
     set({ busy: "opening" });
     try {
       const p = await invoke<Project>("open_project_file", { path });
