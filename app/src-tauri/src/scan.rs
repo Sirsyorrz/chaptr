@@ -187,6 +187,13 @@ pub fn sessionise(mut recs: Vec<Recording>, gap_minutes: f64) -> Library {
     }
 }
 
+pub fn is_video(p: &Path) -> bool {
+    p.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| VIDEO_EXT.contains(&e.to_lowercase().as_str()))
+        .unwrap_or(false)
+}
+
 pub fn find_videos(root: &Path) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = WalkDir::new(root)
         .follow_links(false)
@@ -194,21 +201,33 @@ pub fn find_videos(root: &Path) -> Vec<PathBuf> {
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file())
         .map(|e| e.into_path())
-        .filter(|p| {
-            p.extension()
-                .and_then(|e| e.to_str())
-                .map(|e| VIDEO_EXT.contains(&e.to_lowercase().as_str()))
-                .unwrap_or(false)
-        })
+        .filter(|p| is_video(p))
         .collect();
     paths.sort();
     paths
 }
 
-pub fn scan(sc: &Sidecars, root: &Path, gap_minutes: f64) -> Result<(Library, Vec<String>)> {
-    let paths = find_videos(root);
+/// Sources may be folders to search or individual clips to use as-is, so a
+/// project can be "this weekend's recordings" or "these three files".
+pub fn collect(sources: &[String]) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    for source in sources {
+        let path = PathBuf::from(source);
+        if path.is_dir() {
+            paths.extend(find_videos(&path));
+        } else if path.is_file() && is_video(&path) {
+            paths.push(path);
+        }
+    }
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+pub fn scan(sc: &Sidecars, sources: &[String], gap_minutes: f64) -> Result<(Library, Vec<String>)> {
+    let paths = collect(sources);
     if paths.is_empty() {
-        bail!("no video files under {}", root.display());
+        bail!("no video files found in the chosen sources");
     }
 
     let mut recs = Vec::new();
@@ -224,6 +243,6 @@ pub fn scan(sc: &Sidecars, root: &Path, gap_minutes: f64) -> Result<(Library, Ve
     }
 
     let mut lib = sessionise(recs, gap_minutes);
-    lib.root = root.to_string_lossy().into_owned();
+    lib.root = sources.join(", ");
     Ok((lib, problems))
 }

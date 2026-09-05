@@ -40,6 +40,16 @@ export interface Session {
   recordings: string[];
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  sources: string[];
+  created: string;
+  opened: string;
+  recordings: number;
+  duration: number;
+}
+
 export interface Library {
   root: string;
   scanned_at: string;

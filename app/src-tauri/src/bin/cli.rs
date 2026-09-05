@@ -12,6 +12,7 @@ use chaptr::beats::{BeatConfig, Llm};
 use chaptr::model::Beat;
 use chaptr::tracks::{self, Layout, Settings};
 use chaptr::transcribe;
+use chaptr::project;
 use chaptr::{audio, beats, scan};
 
 fn hms(secs: f64) -> String {
@@ -19,8 +20,14 @@ fn hms(secs: f64) -> String {
     format!("{:02}:{:02}:{:02}", s / 3600, (s % 3600) / 60, s % 60)
 }
 
-fn ws_for(footage: &str) -> Workspace {
-    Workspace::new(PathBuf::from(footage).join(".chaptr"))
+/// Accepts a project id, or a folder/clip path which is opened as a project.
+fn resolve(target: &str) -> Result<(String, Workspace)> {
+    if project::get(target).is_some() {
+        return Ok((target.to_string(), project::workspace(target)));
+    }
+    let p = project::open(vec![target.to_string()])?;
+    project::adopt_legacy(&p.sources, &p.id);
+    Ok((p.id.clone(), project::workspace(&p.id)))
 }
 
 fn models() -> AsrConfig {
@@ -37,18 +44,22 @@ fn dirs_home() -> PathBuf {
     std::env::var("HOME").map(PathBuf::from).unwrap_or_default()
 }
 
-fn load(folder: &str) -> Result<(Workspace, Library)> {
-    let ws = ws_for(folder);
+fn load(target: &str) -> Result<(Workspace, Library)> {
+    let (_, ws) = resolve(target)?;
     let lib: Library = workspace::read_json(&ws.library())?;
     Ok((ws, lib))
 }
 
-fn cmd_scan(folder: &str, gap: f64) -> Result<()> {
+fn cmd_scan(sources: &[String], gap: f64) -> Result<()> {
     let sc = Sidecars::discover();
     sc.require(&sc.ffprobe)?;
 
-    let (lib, problems) = scan::scan(&sc, &PathBuf::from(folder), gap)?;
-    let ws = ws_for(folder);
+    let p = project::open(sources.to_vec())?;
+    if let Some(old) = project::adopt_legacy(&p.sources, &p.id) {
+        println!("adopted existing data from {}", old.display());
+    }
+    let ws = project::workspace(&p.id);
+    let (lib, problems) = scan::scan(&sc, &p.sources, gap)?;
     ws.prepare()?;
     workspace::write_json(&ws.library(), &lib)?;
 
@@ -58,9 +69,11 @@ fn cmd_scan(folder: &str, gap: f64) -> Result<()> {
         lib.sessions.len(),
         hms(lib.total_duration)
     );
-    for p in &problems {
-        eprintln!("skipped {p}");
+    project::touch(&p.id, lib.recordings.len(), lib.total_duration);
+    for pr in &problems {
+        eprintln!("skipped {pr}");
     }
+    println!("project {} [{}]  {}", p.name, p.id, ws.root.display());
     Ok(())
 }
 
@@ -201,7 +214,16 @@ fn main() -> Result<()> {
     let limit = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(usize::MAX);
 
     match sub {
-        "scan" if !folder.is_empty() => cmd_scan(&folder, 45.0),
+        "projects" => {
+            for p in project::list() {
+                println!(
+                    "{}  {:<28} {:>3} recordings  {}",
+                    p.id, p.name, p.recordings, hms(p.duration)
+                );
+            }
+            Ok(())
+        }
+        "scan" if !folder.is_empty() => cmd_scan(&args[2..], 45.0),
         "tracks" if !folder.is_empty() => cmd_tracks(&folder),
         "transcribe" if !folder.is_empty() => cmd_transcribe(&folder, limit),
         "beats" if !folder.is_empty() => cmd_beats(&folder, limit),
@@ -217,6 +239,6 @@ fn main() -> Result<()> {
             }
             Ok(())
         }
-        _ => bail!("usage: chaptr-cli <scan|tracks|transcribe|beats|doctor> <folder> [limit]"),
+        _ => bail!("usage: chaptr-cli <scan|tracks|transcribe|beats|projects|doctor> <folder-or-clip...> [limit]"),
     }
 }

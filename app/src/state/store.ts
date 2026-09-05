@@ -1,11 +1,12 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { Beat, Layout, Library, Role, Settings, Transcript } from "../types";
+import type { Beat, Layout, Library, Project, Role, Settings, Transcript } from "../types";
 
-const FOLDER_KEY = "chaptr.folder";
+const PROJECT_KEY = "chaptr.project";
 
 interface State {
-  folder: string;
+  project: Project | null;
+  projects: Project[];
   library: Library | null;
   settings: Settings | null;
   layouts: Layout[];
@@ -21,7 +22,9 @@ interface State {
   missing: string[];
 
   boot: () => Promise<void>;
-  openFolder: (folder: string) => Promise<void>;
+  openSources: (sources: string[]) => Promise<void>;
+  openProject: (id: string) => Promise<void>;
+  forget: (id: string, deleteData: boolean) => Promise<void>;
   rescan: () => Promise<void>;
   detect: () => Promise<void>;
   setRole: (signature: string, index: number, role: Role) => Promise<void>;
@@ -38,7 +41,8 @@ interface State {
 }
 
 export const useStore = create<State>((set, get) => ({
-  folder: localStorage.getItem(FOLDER_KEY) || "",
+  project: null,
+  projects: [],
   library: null,
   settings: null,
   layouts: [],
@@ -57,31 +61,59 @@ export const useStore = create<State>((set, get) => ({
 
   boot: async () => {
     set({ missing: await invoke<string[]>("check_sidecars") });
-    const { folder } = get();
-    if (folder) await get().openFolder(folder);
+    const projects = await invoke<Project[]>("list_projects");
+    set({ projects });
+    const last = localStorage.getItem(PROJECT_KEY);
+    const pick = projects.find((p) => p.id === last) ?? projects[0];
+    if (pick) await get().openProject(pick.id);
   },
 
-  openFolder: async (folder) => {
-    localStorage.setItem(FOLDER_KEY, folder);
-    set({ folder, busy: "loading", selected: null, transcript: null });
+  openSources: async (sources) => {
+    set({ busy: "opening" });
     try {
-      const library = await invoke<Library | null>("load_library", { folder });
-      const settings = await invoke<Settings>("get_settings", { folder });
-      const beats = await invoke<Beat[]>("load_beats", { folder });
-      set({ library, settings, beats, dirty: false, busy: "" });
-      if (!library) get().say("no library yet — scan the folder", "warn");
+      const p = await invoke<Project>("open_project", { sources });
+      set({ projects: await invoke<Project[]>("list_projects") });
+      await get().openProject(p.id);
     } catch (e) {
       set({ busy: "" });
       get().say(String(e), "warn");
     }
   },
 
+  openProject: async (id) => {
+    localStorage.setItem(PROJECT_KEY, id);
+    set({ busy: "loading", selected: null, transcript: null, beats: [] });
+    try {
+      const projects = await invoke<Project[]>("list_projects");
+      const project = projects.find((p) => p.id === id) ?? null;
+      const library = await invoke<Library | null>("load_library", { id });
+      const settings = await invoke<Settings>("get_settings", { id });
+      const beats = await invoke<Beat[]>("load_beats", { id });
+      set({ project, projects, library, settings, beats, layouts: [], dirty: false, busy: "" });
+      if (!library) get().say("not scanned yet — press Scan", "warn");
+    } catch (e) {
+      set({ busy: "" });
+      get().say(String(e), "warn");
+    }
+  },
+
+  forget: async (id, deleteData) => {
+    await invoke("forget_project", { id, deleteData });
+    const projects = await invoke<Project[]>("list_projects");
+    set({ projects });
+    if (get().project?.id === id) {
+      set({ project: null, library: null, beats: [], transcript: null });
+      if (projects[0]) await get().openProject(projects[0].id);
+    }
+  },
+
   rescan: async () => {
-    const { folder } = get();
+    const id = get().project?.id;
+    if (!id) return;
     set({ busy: "scanning" });
     try {
-      const res = await invoke<{ library: Library; problems: string[] }>("scan_folder", { folder });
-      set({ library: res.library, busy: "" });
+      const res = await invoke<{ library: Library; problems: string[] }>("scan_project", { id });
+      set({ library: res.library, busy: "", projects: await invoke<Project[]>("list_projects") });
       get().say(
         `${res.library.recordings.length} recordings` +
           (res.problems.length ? `, ${res.problems.length} skipped` : ""),
@@ -94,11 +126,12 @@ export const useStore = create<State>((set, get) => ({
   },
 
   detect: async () => {
-    const { folder } = get();
+    const id = get().project?.id;
+    if (!id) return;
     set({ busy: "listening to tracks" });
     try {
-      const layouts = await invoke<Layout[]>("detect_tracks", { folder });
-      const settings = await invoke<Settings>("get_settings", { folder });
+      const layouts = await invoke<Layout[]>("detect_tracks", { id });
+      const settings = await invoke<Settings>("get_settings", { id });
       set({ layouts, settings, busy: "" });
       const unsure = layouts.flatMap((l) => l.tracks).filter((t) => !t.confident).length;
       get().say(unsure ? `${unsure} tracks need confirming` : "tracks identified", unsure ? "warn" : "ok");
@@ -109,31 +142,31 @@ export const useStore = create<State>((set, get) => ({
   },
 
   setRole: async (signature, index, role) => {
-    const { folder, settings } = get();
-    if (!settings) return;
+    const { project, settings } = get();
+    if (!settings || !project) return;
     const roles = [...(settings.roles[signature] ?? [])];
     roles[index] = role;
     const next = { ...settings, roles: { ...settings.roles, [signature]: roles } };
     set({ settings: next });
-    await invoke("set_roles", { folder, signature, roles });
+    await invoke("set_roles", { id: project.id, signature, roles });
     get().say("track roles saved", "ok");
   },
 
   saveSettings: async (patch) => {
-    const { folder, settings } = get();
-    if (!settings) return;
+    const { project, settings } = get();
+    if (!settings || !project) return;
     const next = { ...settings, ...patch };
     set({ settings: next });
-    await invoke("save_settings", { folder, settings: next });
+    await invoke("save_settings", { id: project.id, settings: next });
   },
 
   select: async (i) => {
     set({ selected: i });
-    const { beats, folder, transcript } = get();
+    const { beats, project, transcript } = get();
     if (i === null) return;
     const id = beats[i]?.recording_id;
     if (!id || transcript?.recording_id === id) return;
-    const t = await invoke<Transcript | null>("load_transcript", { folder, recordingId: id });
+    const t = await invoke<Transcript | null>("load_transcript", { id: project!.id, recordingId: id });
     set({ transcript: t });
   },
 
@@ -159,9 +192,10 @@ export const useStore = create<State>((set, get) => ({
   },
 
   save: async () => {
-    const { folder, beats } = get();
+    const { project, beats } = get();
+    if (!project) return;
     try {
-      await invoke("save_beats", { folder, beats });
+      await invoke("save_beats", { id: project.id, beats });
       set({ dirty: false });
       get().say("saved", "ok");
     } catch (e) {

@@ -372,3 +372,5 @@ label.inline input { padding: 0; width: auto; }
   font-size: var(--fs-sm);
 }
 input.wide { width: 100%; margin-bottom: var(--sp-2); }
+
+.projsel { max-width: 300px; }

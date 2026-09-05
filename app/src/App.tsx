@@ -35,9 +35,19 @@ export default function App() {
     return () => removeEventListener("keydown", onKey);
   });
 
-  const pick = async () => {
+  const pickFolder = async () => {
     const dir = await openDialog({ directory: true, title: "Pick a folder of recordings" });
-    if (typeof dir === "string") s.openFolder(dir);
+    if (typeof dir === "string") s.openSources([dir]);
+  };
+
+  const pickClips = async () => {
+    const files = await openDialog({
+      multiple: true,
+      title: "Pick one or more clips",
+      filters: [{ name: "Video", extensions: ["mp4", "mkv", "mov", "flv"] }],
+    });
+    if (Array.isArray(files) && files.length) s.openSources(files as string[]);
+    else if (typeof files === "string") s.openSources([files]);
   };
 
   const lib = s.library;
@@ -46,10 +56,22 @@ export default function App() {
     <div className="app">
       <div className="topbar">
         <span className="brand">chaptr</span>
-        <button onClick={pick} title={s.folder || "No folder"}>
-          {s.folder ? s.folder.split("/").filter(Boolean).pop() : "Open folder…"}
-        </button>
-        <button onClick={s.rescan} disabled={!s.folder || !!s.busy}>Scan</button>
+        <select
+          className="projsel"
+          value={s.project?.id ?? ""}
+          onChange={(e) => s.openProject(e.target.value)}
+          title={s.project?.sources.join("\n") || "No project"}
+        >
+          {!s.projects.length && <option value="">no projects</option>}
+          {s.projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}{p.recordings ? ` · ${p.recordings} clips` : ""}
+            </option>
+          ))}
+        </select>
+        <button onClick={pickFolder} title="Open a whole folder">Folder…</button>
+        <button onClick={pickClips} title="Open individual clips">Clips…</button>
+        <button onClick={s.rescan} disabled={!s.project || !!s.busy}>Scan</button>
         <button onClick={() => setShowTracks(true)} disabled={!lib}>Tracks…</button>
         <input
           className="search"
