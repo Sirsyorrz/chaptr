@@ -17,6 +17,14 @@ pub struct BeatConfig {
     pub max_per_window: usize,
     pub temperature: f64,
     pub context: usize,
+    /// What the footage is, e.g. "a match of Deadlock" or "a recorded meeting".
+    /// Nothing else in the pipeline is game-specific; this is the only knob.
+    pub subject: String,
+    /// Optional names and jargon, to stop the model mangling them.
+    pub notes: String,
+    /// A floor of 2 is what stops whole windows coming back empty: given the
+    /// option of returning nothing, the model takes it about half the time.
+    pub min_per_window: usize,
 }
 
 impl BeatConfig {
@@ -29,6 +37,9 @@ impl BeatConfig {
             max_per_window: 6,
             temperature: 0.2,
             context: 16384,
+            subject: "a video game session".into(),
+            notes: String::new(),
+            min_per_window: 2,
         }
     }
     fn url(&self) -> String {
@@ -96,7 +107,10 @@ impl Llm {
             "chat_template_kwargs": {"enable_thinking": false},
             "response_format": {
                 "type": "json_schema",
-                "json_schema": {"name": "beats", "schema": schema(self.cfg.max_per_window)}
+                "json_schema": {
+                    "name": "beats",
+                    "schema": schema(self.cfg.min_per_window, self.cfg.max_per_window)
+                }
             }
         });
 
@@ -121,16 +135,16 @@ impl Drop for Llm {
     }
 }
 
-/// `minItems` is deliberately 0 but `maxItems` is capped: given an unbounded
-/// array the model pads to the limit with filler, and given a floor it invents
-/// events for stretches where nothing happened.
-fn schema(max: usize) -> Value {
+/// Both bounds matter. Without `maxItems` the model pads to whatever length it
+/// is allowed; without `minItems` it returns an empty array for half of all
+/// windows, which loses far more than the occasional weak beat costs.
+fn schema(min: usize, max: usize) -> Value {
     json!({
         "type": "object",
         "properties": {
             "beats": {
                 "type": "array",
-                "minItems": 0,
+                "minItems": min,
                 "maxItems": max,
                 "items": {
                     "type": "object",
@@ -147,8 +161,8 @@ fn schema(max: usize) -> Value {
     })
 }
 
-const SYSTEM: &str = "You reconstruct what happened in a video game from the players' voice chat. \
-You are writing a match log, not a conversation log.";
+const SYSTEM: &str = "You index recordings so an editor can find moments again later. \
+You log what happened, concisely and concretely.";
 
 fn hms(t: f64) -> String {
     let s = t.max(0.0) as u64;
@@ -160,29 +174,37 @@ fn parse_hms(t: &str) -> Option<f64> {
     Some(m.trim().parse::<f64>().ok()? * 60.0 + s.trim().parse::<f64>().ok()?)
 }
 
-fn prompt(lines: &str, t0: &str, t1: &str) -> String {
+fn prompt(cfg: &BeatConfig, lines: &str, t0: &str, t1: &str) -> String {
+    let mut context = format!("This recording is {}.", cfg.subject);
+    if !cfg.notes.trim().is_empty() {
+        context.push_str(&format!(" Names and terms you may hear: {}.", cfg.notes.trim()));
+    }
+
     format!(
-        "Voice chat from a gameplay recording, {t0} to {t1}. You hear the players; you cannot see the screen.
+        "Audio from a recording, {t0} to {t1}. {context}
+You hear people talking. You cannot see the screen, so infer what is happening.
 
 {lines}
 
-Write a match log: what happened in the game world.
+Log the moments an editor would want to find again: things that happened,
+decisions made, and exchanges that are genuinely funny or memorable.
 
-  \"I'm dead\"            -> \"they died\"
-  \"double kill\"         -> \"they got a double kill\"
-  \"push mid\"            -> \"the team pushed mid\"
-  \"Haze wasted unstop\"  -> \"Haze wasted her unstop ult\"
+Write the event, not the speech act:
+  \"I'm dead\"      -> \"they died\"
+  \"double kill\"   -> \"they got a double kill\"
+  \"let's regroup\" -> \"the team regrouped\"
+For a funny or notable exchange, log what it was ABOUT:
+  -> \"they argued about who caused the wipe\"
+Do not quote a line verbatim as if it were the event.
 
-Report the event the words imply, never the fact that someone spoke. Do not
-write \"asked\", \"said\", \"mentioned\", \"noted\", \"praised\", \"joked\".
+Use a name whenever the transcript says one. \"a player\" or \"the team\" is fine
+when you cannot tell who acted. Avoid \"someone\".
 
-Never use \"a player\", \"the player\", \"Player\" or \"Someone\" as a subject. If you
-do not know who acted, write \"they\" or \"the team\". Use a name only when the
-transcript actually says that name.
-
-Each beat is a clause with a subject and a past-tense verb, 5 to 12 words.
-Prefer a few strong beats over many weak ones. Spread them across {t0}-{t1}.
-t copied exactly from a timestamp above."
+Each beat: a subject and a past-tense verb, 5 to 12 words.
+Give {min} to {max} beats, spread across {t0}-{t1}. Return fewer only if this
+stretch is almost silent. t copied exactly from a timestamp above.",
+        min = cfg.min_per_window + 1,
+        max = cfg.max_per_window,
     )
 }
 
@@ -231,7 +253,7 @@ pub fn run(
                 .collect::<Vec<_>>()
                 .join("\n");
 
-            match llm.ask(SYSTEM, &prompt(&lines, &hms(start), &hms(end))) {
+            match llm.ask(SYSTEM, &prompt(cfg, &lines, &hms(start), &hms(end))) {
                 Ok(v) => {
                     for b in v["beats"].as_array().unwrap_or(&vec![]) {
                         let (Some(t), Some(text)) = (b["t"].as_str(), b["text"].as_str()) else {
