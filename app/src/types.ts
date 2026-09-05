@@ -1,76 +1,111 @@
-export type Tag =
-  | "combat" | "objective" | "banter" | "planning"
-  | "highlight" | "death" | "downtime" | "meta";
+export type Role = "mixed" | "game" | "mic" | "voice" | "ignore" | "unknown";
 
-export const TAGS: Tag[] = [
-  "combat", "objective", "banter", "planning",
-  "highlight", "death", "downtime", "meta",
-];
+export const ROLES: Role[] = ["mixed", "game", "mic", "voice", "ignore", "unknown"];
 
-export interface Marker {
-  seconds: number;
-  t: string;
-  title: string;
-  note: string;
-  tag: Tag;
-  speakers: string[];
-  source: "llm" | "gap-fill" | "manual";
-  confidence: number;
+export const ROLE_HELP: Record<Role, string> = {
+  mixed: "Everything mixed together",
+  game: "Game and system audio — never transcribed",
+  mic: "The person who made the recording",
+  voice: "Everyone else, e.g. a Discord call",
+  ignore: "Skip this track",
+  unknown: "Not identified — pick one",
+};
+
+export interface Track {
+  index: number;
+  name: string;
+  codec: string;
+  channels: number;
 }
 
-export interface Utterance {
-  start: number;
-  end: number;
-  speaker: string;
-  text: string;
-  track: string;
-}
-
-export interface ClipSummary {
-  key: string;
+export interface Recording {
+  id: string;
+  path: string;
   name: string;
   duration: number;
-  fps: number;
   wall_start: string;
+  stamp_source: string;
   session_id: number;
-  markers: number;
-  has_proxy: boolean;
-  edited: boolean;
+  session_offset: number;
+  global_offset: number;
+  tracks: Track[];
 }
 
-export interface Peaks {
-  rate: number;
-  tracks: Record<string, number[]>;
+export interface Session {
+  id: number;
+  label: string;
+  start: string;
+  duration: number;
+  global_offset: number;
+  recordings: string[];
 }
 
-export interface ClipDetail {
-  key: string;
-  clip: {
-    clip: string;
-    duration: number;
-    fps: number;
-    timeline: Utterance[];
-  };
-  markers: Marker[];
-  peaks: Peaks | null;
-  proxy: string | null;
-  edited: boolean;
+export interface Library {
+  root: string;
+  scanned_at: string;
+  total_duration: number;
+  sessions: Session[];
+  recordings: Recording[];
 }
 
+export interface Beat {
+  global: number;
+  recording_id: string;
+  offset: number;
+  text: string;
+  starred: boolean;
+  source: string;
+}
+
+export interface Segment {
+  start: number;
+  end: number;
+  text: string;
+  who: string;
+}
+
+export interface Transcript {
+  recording_id: string;
+  duration: number;
+  model: string;
+  segments: Segment[];
+}
+
+export interface TrackProbe {
+  index: number;
+  name: string;
+  words_per_minute: number;
+  sample: string;
+  role: Role;
+  confident: boolean;
+}
+
+export interface Layout {
+  signature: string;
+  track_count: number;
+  recordings: number;
+  example: string;
+  tracks: TrackProbe[];
+}
+
+export interface Settings {
+  subject: string;
+  notes: string;
+  roles: Record<string, Role[]>;
+}
+
+/** Hours are what the user thinks in across a 100 hour shoot. */
 export const hms = (s: number): string => {
   const v = Math.max(0, Math.floor(s));
   const h = Math.floor(v / 3600);
   const m = Math.floor((v % 3600) / 60);
   const sec = v % 60;
-  return [h, m, sec].map((n) => String(n).padStart(2, "0")).join(":");
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return h ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
 };
 
-export const hmsf = (s: number, fps: number): string =>
-  `${hms(s)}:${String(Math.floor((s % 1) * fps)).padStart(2, "0")}`;
-
-export const parseHms = (t: string): number | null => {
-  const parts = t.split(":").map(Number);
-  if (parts.some(isNaN) || parts.length === 0) return null;
-  while (parts.length < 3) parts.unshift(0);
-  return parts[0] * 3600 + parts[1] * 60 + parts[2];
+export const hoursMins = (s: number): string => {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h ? `${h}h ${m}m` : `${m}m`;
 };

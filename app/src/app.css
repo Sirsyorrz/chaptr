@@ -272,3 +272,103 @@ label.inline input { padding: 0; width: auto; }
   color: var(--fg-dim);
   flex: none;
 }
+
+.search { width: 260px; }
+.sess {
+  padding: var(--sp-2) var(--sp-3) 2px;
+  color: var(--fg-faint);
+  font-size: var(--fs-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-top: 1px solid var(--line);
+  background: var(--panel-2);
+  position: sticky;
+  top: 0;
+}
+.brow {
+  display: grid;
+  grid-template-columns: 24px 52px 56px 1fr 22px;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 1px var(--sp-2) 1px var(--sp-3);
+  border-bottom: 1px solid var(--line-soft);
+}
+.brow:hover { background: var(--row-hover); }
+.brow.sel { background: var(--row-sel); }
+.brow.star .btext { color: var(--sel); }
+.starbtn {
+  background: none;
+  border: none;
+  color: var(--fg-faint);
+  padding: 0;
+  font-size: 13px;
+}
+.brow.star .starbtn { color: var(--sel); }
+.gt { color: var(--accent); }
+.lt { color: var(--fg-faint); }
+.btext {
+  width: 100%;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 3px 5px;
+  color: var(--fg);
+}
+.btext:hover { border-color: var(--line); }
+.btext:focus { background: var(--panel-2); }
+
+.urow.host .uwho { color: var(--ok); }
+.urow .uwho { color: var(--accent-dim); }
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+.sheet-body {
+  width: min(1000px, 92vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.sheet-scroll { overflow-y: auto; padding: var(--sp-3); }
+.note {
+  color: var(--fg-faint);
+  font-size: var(--fs-sm);
+  margin: 0 0 var(--sp-2);
+  max-width: 70ch;
+}
+.layout { margin-bottom: var(--sp-4); }
+.layout-h {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: baseline;
+  padding-bottom: var(--sp-1);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--sp-2);
+}
+.trow {
+  display: grid;
+  grid-template-columns: 150px 70px 110px 1fr;
+  gap: var(--sp-2);
+  align-items: center;
+  padding: 3px 0;
+}
+.trow.unsure select { border-color: var(--sel); color: var(--sel); }
+.tname { color: var(--fg); }
+.wpm { color: var(--fg-faint); text-align: right; }
+.tsample {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+}
+input.wide { width: 100%; margin-bottom: var(--sp-2); }

@@ -5,6 +5,7 @@ pub mod model;
 pub mod scan;
 pub mod sidecar;
 pub mod tracks;
+pub mod transcribe;
 pub mod workspace;
 
 use std::path::PathBuf;
@@ -14,7 +15,7 @@ use serde::Serialize;
 use tauri::State;
 
 use asr::AsrConfig;
-use model::Library;
+use model::{Beat, Library, Transcript};
 use sidecar::Sidecars;
 use tracks::{Layout, Role, Settings};
 use workspace::Workspace;
@@ -132,6 +133,31 @@ fn set_roles(folder: String, signature: String, roles: Vec<Role>) -> Result<(), 
     workspace::write_json(&ws.settings(), &settings).map_err(|e| e.to_string())
 }
 
+/// User edits live in a separate file, so re-running the beat pass never
+/// destroys them.
+#[tauri::command]
+fn load_beats(folder: String) -> Vec<Beat> {
+    let ws = ws_for(&folder);
+    let src = if ws.edits().exists() { ws.edits() } else { ws.beats() };
+    workspace::maybe_json::<serde_json::Value>(&src)
+        .and_then(|v| serde_json::from_value(v["beats"].clone()).ok())
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+fn save_beats(folder: String, beats: Vec<Beat>) -> Result<usize, String> {
+    let ws = ws_for(&folder);
+    ws.prepare().map_err(|e| e.to_string())?;
+    workspace::write_json(&ws.edits(), &serde_json::json!({ "beats": beats }))
+        .map_err(|e| e.to_string())?;
+    Ok(beats.len())
+}
+
+#[tauri::command]
+fn load_transcript(folder: String, recording_id: String) -> Option<Transcript> {
+    workspace::maybe_json(&ws_for(&folder).transcript(&recording_id))
+}
+
 #[tauri::command]
 fn check_sidecars() -> Vec<String> {
     Sidecars::discover().missing()
@@ -149,6 +175,9 @@ pub fn run() {
             save_settings,
             detect_tracks,
             set_roles,
+            load_beats,
+            save_beats,
+            load_transcript,
             check_sidecars
         ])
         .run(tauri::generate_context!())

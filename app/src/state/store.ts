@@ -1,164 +1,171 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { ClipDetail, ClipSummary, Marker, Tag } from "../types";
-import { hms } from "../types";
+import type { Beat, Layout, Library, Role, Settings, Transcript } from "../types";
 
-const WS_KEY = "chaptr.workspace";
+const FOLDER_KEY = "chaptr.folder";
 
 interface State {
-  workspace: string;
-  clips: ClipSummary[];
-  current: ClipDetail | null;
-  markers: Marker[];
+  folder: string;
+  library: Library | null;
+  settings: Settings | null;
+  layouts: Layout[];
+  beats: Beat[];
+  transcript: Transcript | null;
+  selected: number | null;
+  query: string;
+  starredOnly: boolean;
   dirty: boolean;
+  busy: string;
   status: string;
   statusKind: "" | "ok" | "warn";
-  time: number;
-  playing: boolean;
-  zoom: number;
-  selected: number | null;
-  error: string | null;
-  loading: boolean;
+  missing: string[];
 
-  setWorkspace: (path: string) => Promise<void>;
-  refresh: () => Promise<void>;
-  open: (key: string) => Promise<void>;
+  boot: () => Promise<void>;
+  openFolder: (folder: string) => Promise<void>;
+  rescan: () => Promise<void>;
+  detect: () => Promise<void>;
+  setRole: (signature: string, index: number, role: Role) => Promise<void>;
+  saveSettings: (patch: Partial<Settings>) => Promise<void>;
+
+  select: (i: number | null) => Promise<void>;
+  setQuery: (q: string) => void;
+  toggleStarredOnly: () => void;
+  star: (i: number) => void;
+  edit: (i: number, text: string) => void;
+  remove: (i: number) => void;
   save: () => Promise<void>;
-  revert: () => Promise<void>;
-
-  setTime: (t: number) => void;
-  setPlaying: (p: boolean) => void;
-  setZoom: (z: number) => void;
-  select: (i: number | null) => void;
-
-  addMarker: (at: number, title?: string) => void;
-  updateMarker: (i: number, patch: Partial<Marker>) => void;
-  deleteMarker: (i: number) => void;
-  cycleTag: (i: number) => void;
-  setStatus: (msg: string, kind?: "" | "ok" | "warn") => void;
+  say: (msg: string, kind?: "" | "ok" | "warn") => void;
 }
 
-const TAGS: Tag[] = [
-  "combat", "objective", "banter", "planning",
-  "highlight", "death", "downtime", "meta",
-];
-
 export const useStore = create<State>((set, get) => ({
-  workspace: localStorage.getItem(WS_KEY) || "",
-  clips: [],
-  current: null,
-  markers: [],
+  folder: localStorage.getItem(FOLDER_KEY) || "",
+  library: null,
+  settings: null,
+  layouts: [],
+  beats: [],
+  transcript: null,
+  selected: null,
+  query: "",
+  starredOnly: false,
   dirty: false,
+  busy: "",
   status: "",
   statusKind: "",
-  time: 0,
-  playing: false,
-  zoom: 1,
-  selected: null,
-  error: null,
-  loading: false,
+  missing: [],
 
-  setStatus: (status, statusKind = "") => set({ status, statusKind }),
+  say: (status, statusKind = "") => set({ status, statusKind }),
 
-  setWorkspace: async (path) => {
-    localStorage.setItem(WS_KEY, path);
-    set({ workspace: path, current: null, markers: [], clips: [] });
-    await get().refresh();
+  boot: async () => {
+    set({ missing: await invoke<string[]>("check_sidecars") });
+    const { folder } = get();
+    if (folder) await get().openFolder(folder);
   },
 
-  refresh: async () => {
-    const { workspace } = get();
-    if (!workspace) return;
-    set({ loading: true, error: null });
+  openFolder: async (folder) => {
+    localStorage.setItem(FOLDER_KEY, folder);
+    set({ folder, busy: "loading", selected: null, transcript: null });
     try {
-      const clips = await invoke<ClipSummary[]>("list_clips", { ws: { root: workspace } });
-      set({ clips, loading: false });
-      if (clips.length && !get().current) await get().open(clips[0].key);
+      const library = await invoke<Library | null>("load_library", { folder });
+      const settings = await invoke<Settings>("get_settings", { folder });
+      const beats = await invoke<Beat[]>("load_beats", { folder });
+      set({ library, settings, beats, dirty: false, busy: "" });
+      if (!library) get().say("no library yet — scan the folder", "warn");
     } catch (e) {
-      set({ error: String(e), loading: false });
+      set({ busy: "" });
+      get().say(String(e), "warn");
     }
   },
 
-  open: async (key) => {
-    const { workspace, dirty } = get();
-    if (dirty && !confirm("Discard unsaved marker changes?")) return;
-    set({ loading: true });
+  rescan: async () => {
+    const { folder } = get();
+    set({ busy: "scanning" });
     try {
-      const detail = await invoke<ClipDetail>("load_clip", { ws: { root: workspace }, key });
-      set({
-        current: detail,
-        markers: detail.markers,
-        dirty: false,
-        time: 0,
-        selected: null,
-        status: "",
-        statusKind: "",
-        loading: false,
-      });
+      const res = await invoke<{ library: Library; problems: string[] }>("scan_folder", { folder });
+      set({ library: res.library, busy: "" });
+      get().say(
+        `${res.library.recordings.length} recordings` +
+          (res.problems.length ? `, ${res.problems.length} skipped` : ""),
+        "ok",
+      );
     } catch (e) {
-      set({ error: String(e), loading: false });
+      set({ busy: "" });
+      get().say(String(e), "warn");
     }
+  },
+
+  detect: async () => {
+    const { folder } = get();
+    set({ busy: "listening to tracks" });
+    try {
+      const layouts = await invoke<Layout[]>("detect_tracks", { folder });
+      const settings = await invoke<Settings>("get_settings", { folder });
+      set({ layouts, settings, busy: "" });
+      const unsure = layouts.flatMap((l) => l.tracks).filter((t) => !t.confident).length;
+      get().say(unsure ? `${unsure} tracks need confirming` : "tracks identified", unsure ? "warn" : "ok");
+    } catch (e) {
+      set({ busy: "" });
+      get().say(String(e), "warn");
+    }
+  },
+
+  setRole: async (signature, index, role) => {
+    const { folder, settings } = get();
+    if (!settings) return;
+    const roles = [...(settings.roles[signature] ?? [])];
+    roles[index] = role;
+    const next = { ...settings, roles: { ...settings.roles, [signature]: roles } };
+    set({ settings: next });
+    await invoke("set_roles", { folder, signature, roles });
+    get().say("track roles saved", "ok");
+  },
+
+  saveSettings: async (patch) => {
+    const { folder, settings } = get();
+    if (!settings) return;
+    const next = { ...settings, ...patch };
+    set({ settings: next });
+    await invoke("save_settings", { folder, settings: next });
+  },
+
+  select: async (i) => {
+    set({ selected: i });
+    const { beats, folder, transcript } = get();
+    if (i === null) return;
+    const id = beats[i]?.recording_id;
+    if (!id || transcript?.recording_id === id) return;
+    const t = await invoke<Transcript | null>("load_transcript", { folder, recordingId: id });
+    set({ transcript: t });
+  },
+
+  setQuery: (query) => set({ query }),
+  toggleStarredOnly: () => set({ starredOnly: !get().starredOnly }),
+
+  star: (i) => {
+    const beats = get().beats.slice();
+    beats[i] = { ...beats[i], starred: !beats[i].starred };
+    set({ beats, dirty: true });
+  },
+
+  edit: (i, text) => {
+    const beats = get().beats.slice();
+    beats[i] = { ...beats[i], text };
+    set({ beats, dirty: true });
+  },
+
+  remove: (i) => {
+    const beats = get().beats.slice();
+    beats.splice(i, 1);
+    set({ beats, dirty: true, selected: null });
   },
 
   save: async () => {
-    const { workspace, current, markers } = get();
-    if (!current) return;
+    const { folder, beats } = get();
     try {
-      await invoke("save_markers", {
-        ws: { root: workspace },
-        key: current.key,
-        markers,
-      });
-      set({ dirty: false, status: "saved", statusKind: "ok" });
-      await get().refresh();
+      await invoke("save_beats", { folder, beats });
+      set({ dirty: false });
+      get().say("saved", "ok");
     } catch (e) {
-      set({ status: `save failed: ${e}`, statusKind: "warn" });
+      get().say(String(e), "warn");
     }
-  },
-
-  revert: async () => {
-    const { workspace, current } = get();
-    if (!current) return;
-    if (!confirm("Discard your edits and restore the generated markers?")) return;
-    await invoke("revert_markers", { ws: { root: workspace }, key: current.key });
-    await get().open(current.key);
-  },
-
-  setTime: (time) => set({ time }),
-  setPlaying: (playing) => set({ playing }),
-  setZoom: (zoom) => set({ zoom: Math.min(64, Math.max(0.25, zoom)) }),
-  select: (selected) => set({ selected }),
-
-  addMarker: (at, title = "") => {
-    const markers = [...get().markers, {
-      seconds: at,
-      t: hms(at),
-      title,
-      note: "",
-      tag: "meta" as Tag,
-      speakers: [],
-      source: "manual" as const,
-      confidence: 1,
-    }].sort((a, b) => a.seconds - b.seconds);
-    set({ markers, dirty: true, status: "unsaved", statusKind: "warn" });
-  },
-
-  updateMarker: (i, patch) => {
-    const markers = get().markers.slice();
-    markers[i] = { ...markers[i], ...patch };
-    if (patch.seconds !== undefined) markers[i].t = hms(patch.seconds);
-    set({ markers, dirty: true, status: "unsaved", statusKind: "warn" });
-  },
-
-  deleteMarker: (i) => {
-    const markers = get().markers.slice();
-    markers.splice(i, 1);
-    set({ markers, dirty: true, selected: null, status: "unsaved", statusKind: "warn" });
-  },
-
-  cycleTag: (i) => {
-    const cur = get().markers[i];
-    const next = TAGS[(TAGS.indexOf(cur.tag) + 1) % TAGS.length];
-    get().updateMarker(i, { tag: next });
   },
 }));

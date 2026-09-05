@@ -11,6 +11,7 @@ use chaptr::workspace::{self, Workspace};
 use chaptr::beats::{BeatConfig, Llm};
 use chaptr::model::Beat;
 use chaptr::tracks::{self, Layout, Settings};
+use chaptr::transcribe;
 use chaptr::{audio, beats, scan};
 
 fn hms(secs: f64) -> String {
@@ -110,7 +111,10 @@ fn cmd_transcribe(folder: &str, limit: usize) -> Result<()> {
     let sc = Sidecars::discover();
     let (ws, lib) = load(folder)?;
     let cfg = models();
-    let track: usize = std::env::var("CHAPTR_TRACK").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
+    let settings: Settings = workspace::maybe_json(&ws.settings()).unwrap_or_default();
+    if settings.roles.is_empty() {
+        bail!("no track roles yet: run `chaptr-cli tracks {folder}` first");
+    }
 
     for rec in lib.recordings.iter().take(limit) {
         let dest = ws.transcript(&rec.id);
@@ -118,39 +122,33 @@ fn cmd_transcribe(folder: &str, limit: usize) -> Result<()> {
             println!("skip {}", rec.name);
             continue;
         }
+        let Some(roles) = settings.roles_for(rec) else {
+            eprintln!("no roles for layout {} ({})", tracks::signature(rec), rec.name);
+            continue;
+        };
+        let plan = transcribe::plan(roles)?;
         let t = std::time::Instant::now();
-        println!("{} ({})", rec.name, hms(rec.duration));
+        println!("{} ({})  {:?}", rec.name, hms(rec.duration), plan);
 
-        let wav = ws.scratch(&format!("{}.t{track}", rec.id));
-        audio::sample_track(&sc, rec, track, 0.0, rec.duration, &wav)?;
-        let extracted = t.elapsed().as_secs_f64();
-
-        let segments = asr::transcribe(&sc, &cfg, &wav, "all", |p| {
+        let tr = transcribe::run(&sc, &cfg, &ws, rec, roles, &dest, |p| {
             print!("\r  {:.0}%   ", p * 100.0);
             use std::io::Write;
             let _ = std::io::stdout().flush();
         })?;
-        let _ = std::fs::remove_file(&wav);
-
-        workspace::write_json(
-            &dest,
-            &Transcript {
-                recording_id: rec.id.clone(),
-                duration: rec.duration,
-                model: cfg.model.file_name().unwrap_or_default().to_string_lossy().into_owned(),
-                segments: segments.clone(),
-            },
-        )?;
 
         let el = t.elapsed().as_secs_f64();
+        let hosts = tr.segments.iter().filter(|s| s.who == "host").count();
+        let friends = tr.segments.iter().filter(|s| s.who == "friend").count();
         println!(
-            "\r  {} segments, audio {:.0}s, total {:.0}s, {:.0}x realtime",
-            segments.len(),
-            extracted,
+            "\r  {} segments ({} host, {} friend), {:.0}s, {:.0}x realtime",
+            tr.segments.len(),
+            hosts,
+            friends,
             el,
             rec.duration / el
         );
     }
+    ws.clear_scratch();
     Ok(())
 }
 
