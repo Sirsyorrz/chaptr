@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useStore } from "./state/store";
 import { Chaptrs } from "./panels/Chaptrs";
+import { Files } from "./panels/Files";
 import { Transcript } from "./panels/Transcript";
 import { Tracks } from "./panels/Tracks";
 import { hoursMins, type JobProgress } from "./types";
@@ -129,7 +130,17 @@ export default function App() {
       )}
 
       <div className="main">
-        <div className="left"><Chaptrs /></div>
+        <div className="left">
+          <div className="tabs">
+            <button className={s.tab === "chaptrs" ? "on" : ""} onClick={() => s.setTab("chaptrs")}>
+              Chaptrs {s.chaptrs.length ? `(${s.chaptrs.length})` : ""}
+            </button>
+            <button className={s.tab === "files" ? "on" : ""} onClick={() => s.setTab("files")}>
+              Files {s.files.length ? `(${s.files.length})` : ""}
+            </button>
+          </div>
+          {s.tab === "chaptrs" ? <Chaptrs /> : <Files />}
+        </div>
         <div className="right"><Transcript /></div>
       </div>
 

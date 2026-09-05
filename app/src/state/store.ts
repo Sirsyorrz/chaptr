@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { Chaptr, JobProgress, Layout, Library, Project, Role, Settings, Transcript } from "../types";
+import type { Chaptr, FileStatus, JobProgress, Layout, Library, Project, Role, Settings, Transcript } from "../types";
 
 const PROJECT_KEY = "chaptr.project";
 
@@ -22,6 +22,12 @@ interface State {
   missing: string[];
 
   job: JobProgress | null;
+  files: FileStatus[];
+  viewing: string | null;
+  tab: "chaptrs" | "files";
+  setTab: (t: "chaptrs" | "files") => void;
+  refreshFiles: () => Promise<void>;
+  openFile: (recordingId: string) => Promise<void>;
   boot: () => Promise<void>;
   runJob: (stage: "transcribe" | "chaptrs") => Promise<void>;
   cancelJob: () => Promise<void>;
@@ -61,8 +67,27 @@ export const useStore = create<State>((set, get) => ({
   statusKind: "",
   missing: [],
   job: null,
+  files: [],
+  viewing: null,
+  tab: "chaptrs",
 
   say: (status, statusKind = "") => set({ status, statusKind }),
+
+  setTab: (tab) => set({ tab }),
+
+  refreshFiles: async () => {
+    const id = get().project?.id;
+    if (!id) return;
+    set({ files: await invoke<FileStatus[]>("file_status", { id }) });
+  },
+
+  openFile: async (recordingId) => {
+    const id = get().project?.id;
+    if (!id) return;
+    const t = await invoke<Transcript | null>("load_transcript", { id, recordingId });
+    set({ transcript: t, viewing: recordingId, selected: null });
+    if (!t) get().say("that recording has no transcript yet", "warn");
+  },
 
   runJob: async (stage) => {
     const id = get().project?.id;
@@ -70,6 +95,11 @@ export const useStore = create<State>((set, get) => ({
     set({ job: null, busy: stage });
     try {
       await invoke("start_job", { id, stage });
+      const poll = setInterval(async () => {
+        const p = await invoke<JobProgress | null>("job_status");
+        if (p) get().onJob(p);
+        if (!get().busy) clearInterval(poll);
+      }, 500);
     } catch (e) {
       set({ busy: "" });
       get().say(String(e), "warn");
@@ -90,9 +120,9 @@ export const useStore = create<State>((set, get) => ({
     if (p.cancelled) get().say("stopped", "warn");
     else if (!p.error) get().say(p.message || "finished", "ok");
     const id = get().project?.id;
-    if (id && p.stage === "chaptrs") {
-      invoke<Chaptr[]>("load_chaptrs", { id }).then((chaptrs) => set({ chaptrs, dirty: false }));
-    }
+    if (!id) return;
+    get().refreshFiles();
+    invoke<Chaptr[]>("load_chaptrs", { id }).then((chaptrs) => set({ chaptrs, dirty: false }));
   },
 
   boot: async () => {
@@ -125,7 +155,9 @@ export const useStore = create<State>((set, get) => ({
       const library = await invoke<Library | null>("load_library", { id });
       const settings = await invoke<Settings>("get_settings", { id });
       const chaptrs = await invoke<Chaptr[]>("load_chaptrs", { id });
-      set({ project, projects, library, settings, chaptrs, layouts: [], dirty: false, busy: "" });
+      set({ project, projects, library, settings, chaptrs, layouts: [], dirty: false, busy: "",
+            viewing: null, transcript: null });
+      get().refreshFiles();
       if (!library) get().say("not scanned yet — press Scan", "warn");
     } catch (e) {
       set({ busy: "" });
@@ -150,6 +182,7 @@ export const useStore = create<State>((set, get) => ({
     try {
       const res = await invoke<{ library: Library; problems: string[] }>("scan_project", { id });
       set({ library: res.library, busy: "", projects: await invoke<Project[]>("list_projects") });
+      get().refreshFiles();
       get().say(
         `${res.library.recordings.length} recordings` +
           (res.problems.length ? `, ${res.problems.length} skipped` : ""),

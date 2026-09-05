@@ -10,12 +10,16 @@ export function Transcript() {
   const boxRef = useRef<HTMLDivElement>(null);
   const hitRef = useRef<HTMLDivElement>(null);
 
+  const viewing = useStore((s) => s.viewing);
   const at = selected !== null ? chaptrs[selected]?.offset ?? null : null;
+  const whole = viewing !== null && at === null;
 
   const rows = useMemo(() => {
-    if (!transcript || at === null) return [];
+    if (!transcript) return [];
+    if (whole) return transcript.segments;
+    if (at === null) return [];
     return transcript.segments.filter((s) => s.start > at - 90 && s.start < at + 90);
-  }, [transcript, at]);
+  }, [transcript, at, whole]);
 
   useEffect(() => {
     if (hitRef.current && boxRef.current) {
@@ -29,13 +33,15 @@ export function Transcript() {
   return (
     <div className="pane">
       <div className="pane-h">
-        <span>Around this chaptr</span>
+        <span>{whole ? "Transcript" : "Around this chaptr"}</span>
         {labelled && <span className="count">host / friend</span>}
         <span className="spacer" />
-        {transcript && <span className="dim">±90s</span>}
+        {transcript && <span className="dim">{whole ? `${rows.length} lines` : "±90s"}</span>}
       </div>
       <div className="list" ref={boxRef}>
-        {selected === null && <p className="pad dim">Select a chaptr.</p>}
+        {selected === null && !viewing && (
+          <p className="pad dim">Select a chaptr, or pick a file to read its transcript.</p>
+        )}
         {selected !== null && !transcript && (
           <p className="pad dim">No transcript for this recording.</p>
         )}

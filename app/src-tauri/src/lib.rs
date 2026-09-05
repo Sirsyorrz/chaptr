@@ -27,6 +27,7 @@ pub struct App {
     pub library: Mutex<Option<Library>>,
     pub cancel: jobs::Cancel,
     pub running: Mutex<bool>,
+    pub last_job: Mutex<Option<jobs::Progress>>,
 }
 
 fn models() -> AsrConfig {
@@ -233,6 +234,50 @@ fn cancel_job(app: State<App>) {
     app.cancel.request();
 }
 
+#[tauri::command]
+fn job_status(app: State<App>) -> Option<jobs::Progress> {
+    app.last_job.lock().unwrap().clone()
+}
+
+/// Per-recording state, so the user can see what has actually been produced.
+#[derive(Serialize)]
+pub struct FileStatus {
+    id: String,
+    name: String,
+    duration: f64,
+    global_offset: f64,
+    session_id: usize,
+    segments: usize,
+    chaptrs: usize,
+    transcribed: bool,
+}
+
+#[tauri::command]
+fn file_status(id: String) -> Vec<FileStatus> {
+    let ws = project::workspace(&id);
+    let Some(lib) = workspace::maybe_json::<Library>(&ws.library()) else {
+        return Vec::new();
+    };
+    let chaptrs = load_chaptrs(id.clone());
+
+    lib.recordings
+        .iter()
+        .map(|r| {
+            let tr: Option<Transcript> = workspace::maybe_json(&ws.transcript(&r.id));
+            FileStatus {
+                segments: tr.as_ref().map_or(0, |t| t.segments.len()),
+                transcribed: tr.is_some(),
+                chaptrs: chaptrs.iter().filter(|c| c.recording_id == r.id).count(),
+                id: r.id.clone(),
+                name: r.name.clone(),
+                duration: r.duration,
+                global_offset: r.global_offset,
+                session_id: r.session_id,
+            }
+        })
+        .collect()
+}
+
 /// Everything that must exist before a job can run. Models are included
 /// because a missing one otherwise surfaces deep into a long pass.
 #[tauri::command]
@@ -273,6 +318,8 @@ pub fn run() {
             load_transcript,
             start_job,
             cancel_job,
+            job_status,
+            file_status,
             check_sidecars
         ])
         .run(tauri::generate_context!())

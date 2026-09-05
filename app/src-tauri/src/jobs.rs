@@ -61,7 +61,13 @@ impl Cancel {
     }
 }
 
+/// Pushed as an event *and* stored, so the UI can poll. Events alone are one
+/// silent failure away from a job that runs invisibly for an hour.
 fn emit(app: &AppHandle, p: &Progress) {
+    use tauri::Manager;
+    if let Some(state) = app.try_state::<crate::App>() {
+        *state.last_job.lock().unwrap() = Some(p.clone());
+    }
     let _ = app.emit("job", p);
 }
 

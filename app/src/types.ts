@@ -131,3 +131,14 @@ export interface JobProgress {
   message: string;
   error: string | null;
 }
+
+export interface FileStatus {
+  id: string;
+  name: string;
+  duration: number;
+  global_offset: number;
+  session_id: number;
+  segments: number;
+  chaptrs: number;
+  transcribed: boolean;
+}
