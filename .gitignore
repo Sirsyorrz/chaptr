@@ -2,3 +2,6 @@
 chaptr-out/
 __pycache__/
 *.pyc
+
+# sidecar binaries and model weights, symlinked in dev
+app/src-tauri/target/

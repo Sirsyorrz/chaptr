@@ -158,9 +158,33 @@ fn load_transcript(folder: String, recording_id: String) -> Option<Transcript> {
     workspace::maybe_json(&ws_for(&folder).transcript(&recording_id))
 }
 
+/// Everything that must exist before a job can run. Models are included
+/// because a missing one otherwise surfaces as a failure deep into a long pass.
 #[tauri::command]
 fn check_sidecars() -> Vec<String> {
-    Sidecars::discover().missing()
+    let mut missing = Sidecars::discover().missing();
+    let cfg = models();
+    for (label, path) in [
+        ("speech model", &cfg.model),
+        ("voice-activity model", &cfg.vad_model),
+    ] {
+        if !path.is_file() {
+            missing.push(label.to_string());
+        }
+    }
+    if !beats::BeatConfig::new(llm_model()).model.is_file() {
+        missing.push("language model".into());
+    }
+    missing
+}
+
+fn llm_model() -> PathBuf {
+    std::env::var("CHAPTR_LLM").map(PathBuf::from).unwrap_or_else(|_| {
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.join("models").join("Qwen3-14B-Q4_K_M.gguf")))
+            .unwrap_or_default()
+    })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
