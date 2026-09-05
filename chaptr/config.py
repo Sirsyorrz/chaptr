@@ -19,7 +19,7 @@ DEFAULTS = {
         "by_count": {
             "2": ["mixed", "mic"],
             "3": ["mixed", "mic", "game"],
-            "4": ["mixed", "mic", "game", "discord"],
+            "4": ["mixed", "game", "mic", "discord"],
         },
     },
     "transcribe_roles": ["mic", "discord"],

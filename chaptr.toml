@@ -6,4 +6,4 @@ max_speakers = 6
 
 # OBS track layout for new recordings.
 [roles.by_count]
-"4" = ["mixed", "mic", "game", "discord"]
+"4" = ["mixed", "game", "mic", "discord"]

@@ -48,32 +48,56 @@ def detect_roles(video: Path, streams: list[int], duration: float, work: Path,
             spans += sc
             wav.unlink(missing_ok=True)
         total = window * len(offsets)
-        stats[stream] = {
+        entry = {
             "speech_ratio": round(speech / total, 3) if total else 0.0,
             "spans": spans,
+            "speakers": 0,
         }
+        if entry["speech_ratio"] > 0.02:
+            entry["speakers"] = _count_speakers(video, stream, offsets[0], window, work)
+        stats[stream] = entry
     return stats
 
 
-def assign_from_stats(stats: dict[int, dict], silent_ratio=0.01) -> dict[int, str]:
-    """Map stream index -> role using measured speech content.
+def _count_speakers(video: Path, stream: int, start: float, dur: float, work: Path) -> int:
+    from . import diarize
 
-    Heuristic: the busiest speech track is voice. If exactly one track carries
-    speech it is a mixed recording; if two, the quieter one is the local mic
-    (push-to-talk, fewer spans) and the busier one is the remote group.
+    wav = _sample(video, stream, start, dur, work / f"spk{stream}.wav")
+    try:
+        turns = diarize.diarize(wav, max_speakers=8)
+    finally:
+        wav.unlink(missing_ok=True)
+    # ignore blips; crosstalk produces sub-second phantom turns
+    return len({t["speaker"] for t in turns if t["end"] - t["start"] >= 0.5})
+
+
+def assign_from_stats(stats: dict[int, dict], silent_ratio=0.02) -> dict[int, str]:
+    """Map stream index -> role using speech presence and distinct voice count.
+
+    Speech volume alone cannot separate a mixed track from the group track,
+    since the mixed track contains the group. Voice count does: the mic carries
+    exactly one speaker, and the mixed track carries the most.
     """
+    roles = {s: "game" for s in stats}
     voiced = {s: v for s, v in stats.items() if v["speech_ratio"] > silent_ratio}
-    roles = {s: "unused" for s in stats}
-
     if not voiced:
         return roles
+
+    solo = [s for s, v in voiced.items() if v.get("speakers", 0) == 1]
+    multi = sorted(
+        (s for s, v in voiced.items() if v.get("speakers", 0) > 1),
+        key=lambda s: (voiced[s]["speakers"], voiced[s]["speech_ratio"]),
+        reverse=True,
+    )
+
     if len(voiced) == 1:
         roles[next(iter(voiced))] = "mixed"
         return roles
 
-    ranked = sorted(voiced.items(), key=lambda kv: kv[1]["speech_ratio"], reverse=True)
-    roles[ranked[0][0]] = "discord"
-    roles[ranked[1][0]] = "mic"
-    for s, _ in ranked[2:]:
-        roles[s] = "other"
+    if solo:
+        roles[solo[0]] = "mic"
+    if multi:
+        roles[multi[0]] = "mixed" if len(multi) > 1 else "discord"
+    if len(multi) > 1:
+        roles[multi[1]] = "discord"
     return roles

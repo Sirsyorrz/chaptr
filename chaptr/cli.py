@@ -89,7 +89,7 @@ def cmd_detect(args, cfg):
             was, now = t["role"], roles[t["index"]]
             flag = "" if was == now else f"  (was {was})"
             print(f"  stream {t['index']}  speech={st['speech_ratio']:>5.1%} "
-                  f"spans={st['spans']:>4}  role={now}{flag}")
+                  f"spk={st.get('speakers',0)}  role={now}{flag}")
             t["role"] = now
 
     if args.write:
