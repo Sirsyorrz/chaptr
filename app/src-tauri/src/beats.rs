@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
 
-use crate::model::{Beat, Recording, Segment, TAGS};
+use crate::model::{Beat, Recording, Segment};
 use crate::sidecar::Sidecars;
 
 #[derive(Debug, Clone)]
@@ -136,10 +136,9 @@ fn schema(max: usize) -> Value {
                     "type": "object",
                     "properties": {
                         "t": {"type": "string", "pattern": "^[0-9]{1,2}:[0-9]{2}$"},
-                        "text": {"type": "string", "maxLength": 90},
-                        "tag": {"type": "string", "enum": TAGS}
+                        "text": {"type": "string", "maxLength": 90}
                     },
-                    "required": ["t", "text", "tag"],
+                    "required": ["t", "text"],
                     "additionalProperties": false
                 }
             }
@@ -148,8 +147,8 @@ fn schema(max: usize) -> Value {
     })
 }
 
-const SYSTEM: &str = "You index gameplay footage for a video editor. Most of a recording is filler. \
-You report concrete events in the third person, naming people when the transcript names them.";
+const SYSTEM: &str = "You reconstruct what happened in a video game from the players' voice chat. \
+You are writing a match log, not a conversation log.";
 
 fn hms(t: f64) -> String {
     let s = t.max(0.0) as u64;
@@ -167,20 +166,23 @@ fn prompt(lines: &str, t0: &str, t1: &str) -> String {
 
 {lines}
 
-Report the moments an editor would want to find: kills, deaths, fights, bosses,
-objectives taken, plans made, genuinely funny exchanges.
+Write a match log: what happened in the game world.
 
-Rules:
-- Report the event the words imply, not the words themselves.
-  \"I'm dead\" -> \"they died\".  \"double kill\" -> \"they got a double kill\".
-- Be specific. Name the hero, item or player if the transcript does.
-  GOOD: \"Haze wasted her unstop ult by accident\"
-  BAD:  \"a major character was eliminated\"
-- Third person. No \"I\"/\"my\". Do not quote dialogue as the event.
-- Spread across {t0}-{t1}. Fewer beats if little happened.
-- t copied exactly from a timestamp above. Max 12 words.
+  \"I'm dead\"            -> \"they died\"
+  \"double kill\"         -> \"they got a double kill\"
+  \"push mid\"            -> \"the team pushed mid\"
+  \"Haze wasted unstop\"  -> \"Haze wasted her unstop ult\"
 
-tag: combat, death, objective, highlight, banter, planning, downtime, meta"
+Report the event the words imply, never the fact that someone spoke. Do not
+write \"asked\", \"said\", \"mentioned\", \"noted\", \"praised\", \"joked\".
+
+Never use \"a player\", \"the player\", \"Player\" or \"Someone\" as a subject. If you
+do not know who acted, write \"they\" or \"the team\". Use a name only when the
+transcript actually says that name.
+
+Each beat is a clause with a subject and a past-tense verb, 5 to 12 words.
+Prefer a few strong beats over many weak ones. Spread them across {t0}-{t1}.
+t copied exactly from a timestamp above."
     )
 }
 
@@ -232,9 +234,7 @@ pub fn run(
             match llm.ask(SYSTEM, &prompt(&lines, &hms(start), &hms(end))) {
                 Ok(v) => {
                     for b in v["beats"].as_array().unwrap_or(&vec![]) {
-                        let (Some(t), Some(text), Some(tag)) =
-                            (b["t"].as_str(), b["text"].as_str(), b["tag"].as_str())
-                        else {
+                        let (Some(t), Some(text)) = (b["t"].as_str(), b["text"].as_str()) else {
                             continue;
                         };
                         // The model will occasionally invent a plausible-looking
@@ -247,7 +247,6 @@ pub fn run(
                             recording_id: rec.id.clone(),
                             offset: secs,
                             text: text.trim().to_string(),
-                            tag: tag.to_string(),
                             starred: false,
                             source: "llm".into(),
                         };

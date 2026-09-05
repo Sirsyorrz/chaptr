@@ -76,14 +76,8 @@ pub struct Beat {
     /// Seconds into that recording. What you type into the editor.
     pub offset: f64,
     pub text: String,
-    pub tag: String,
     #[serde(default)]
     pub starred: bool,
     /// "llm" or "manual".
     pub source: String,
 }
-
-pub const TAGS: [&str; 8] = [
-    "combat", "death", "objective", "highlight",
-    "banter", "planning", "downtime", "meta",
-];
