@@ -6,7 +6,7 @@ import sys
 from datetime import timedelta
 from pathlib import Path
 
-from . import config, detect, markers as markers_mod, pipeline, ui
+from . import config, detect, markers as markers_mod, pipeline, proxy, ui
 from .audio import extract_track, loudness
 from .probe import Clip, Track, build_manifest
 
@@ -178,6 +178,40 @@ def cmd_mark(args, cfg):
             print(f"    [{m['t']}] {m['tag']:<9} {m['title']}")
 
 
+def cmd_proxy(args, cfg):
+    out_dir = Path(args.out)
+    manifest = load_manifest(out_dir)
+    clips = [_clip_from_dict(c) for s in manifest["sessions"] for c in s["clips"]]
+    if args.clip:
+        clips = [c for c in clips if args.clip in c.path]
+    if args.limit:
+        clips = clips[: args.limit]
+    if not clips:
+        sys.exit("no clips matched")
+
+    for i, clip in enumerate(clips, 1):
+        key = pipeline.clip_key(clip.path)
+        print(f"[{i}/{len(clips)}] {Path(clip.path).name}", flush=True)
+        mixed = clip.track_for("mixed") or clip.track_for("discord")
+        dest = out_dir / "proxy" / f"{key}.mp4"
+        proxy.build_proxy(Path(clip.path), dest, mixed.index if mixed else None,
+                          height=args.height)
+
+        wavs = {}
+        for role in ("mic", "discord"):
+            track = clip.track_for(role)
+            if track:
+                wavs[role] = extract_track(Path(clip.path), track.index,
+                                           out_dir / "audio" / key / f"{role}.wav")
+        if wavs:
+            proxy.build_peaks(wavs, out_dir / "peaks" / f"{key}.json")
+        size = dest.stat().st_size / 1e6
+        print(f"    proxy {size:.0f} MB, peaks for {len(wavs)} tracks")
+
+    if not args.keep_audio:
+        pipeline.cleanup_audio(out_dir)
+
+
 def cmd_ui(args, cfg):
     ui.serve(Path(args.out), args.port)
 
@@ -219,6 +253,13 @@ def main(argv=None):
     p.add_argument("--max-gap-seconds", type=float)
     p.add_argument("--force", action="store_true")
     p.set_defaults(fn=cmd_mark)
+
+    p = sub.add_parser("proxy", help="build scrub proxies and waveform peaks")
+    p.add_argument("--clip")
+    p.add_argument("--limit", type=int)
+    p.add_argument("--height", type=int, default=360)
+    p.add_argument("--keep-audio", action="store_true")
+    p.set_defaults(fn=cmd_proxy)
 
     p = sub.add_parser("ui", help="serve the marker review UI")
     p.add_argument("--port", type=int, default=8756)
