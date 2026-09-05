@@ -1,0 +1,9 @@
+session_gap_minutes = 45.0
+recurse = true
+transcribe_roles = ["mic", "discord"]
+diarize_roles = ["discord"]
+max_speakers = 6
+
+# OBS track layout for new recordings.
+[roles.by_count]
+"4" = ["mixed", "mic", "game", "discord"]

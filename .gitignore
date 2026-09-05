@@ -1,0 +1,4 @@
+.venv/
+chaptr-out/
+__pycache__/
+*.pyc
