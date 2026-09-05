@@ -5,11 +5,11 @@ use std::time::{Duration, Instant};
 use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
 
-use crate::model::{Beat, Recording, Segment};
+use crate::model::{Chaptr, Recording, Segment};
 use crate::sidecar::Sidecars;
 
 #[derive(Debug, Clone)]
-pub struct BeatConfig {
+pub struct ChaptrConfig {
     pub model: PathBuf,
     pub port: u16,
     pub window_secs: f64,
@@ -27,7 +27,7 @@ pub struct BeatConfig {
     pub min_per_window: usize,
 }
 
-impl BeatConfig {
+impl ChaptrConfig {
     pub fn new(model: impl Into<PathBuf>) -> Self {
         Self {
             model: model.into(),
@@ -51,11 +51,11 @@ impl BeatConfig {
 /// job cannot leave several gigabytes of model resident in VRAM.
 pub struct Llm {
     child: Option<Child>,
-    cfg: BeatConfig,
+    cfg: ChaptrConfig,
 }
 
 impl Llm {
-    pub fn start(sc: &Sidecars, cfg: BeatConfig) -> Result<Self> {
+    pub fn start(sc: &Sidecars, cfg: ChaptrConfig) -> Result<Self> {
         sc.require(&sc.llama)?;
         if !cfg.model.is_file() {
             bail!("llm model missing: {}", cfg.model.display());
@@ -78,7 +78,7 @@ impl Llm {
     }
 
     /// Attaches to an already-running server, for development.
-    pub fn attach(cfg: BeatConfig) -> Self {
+    pub fn attach(cfg: ChaptrConfig) -> Self {
         Self { child: None, cfg }
     }
 
@@ -174,7 +174,7 @@ fn parse_hms(t: &str) -> Option<f64> {
     Some(m.trim().parse::<f64>().ok()? * 60.0 + s.trim().parse::<f64>().ok()?)
 }
 
-fn prompt(cfg: &BeatConfig, lines: &str, t0: &str, t1: &str) -> String {
+fn prompt(cfg: &ChaptrConfig, lines: &str, t0: &str, t1: &str) -> String {
     let mut context = format!("This recording is {}.", cfg.subject);
     if !cfg.notes.trim().is_empty() {
         context.push_str(&format!(" Names and terms you may hear: {}.", cfg.notes.trim()));
@@ -211,7 +211,7 @@ stretch is almost silent. t copied exactly from a timestamp above.",
 /// Two beats describing the same moment, produced by neighbouring windows
 /// overlapping. Time proximity alone is too eager; wording alone misses
 /// rephrasings, so require both.
-fn duplicates(a: &Beat, b: &Beat) -> bool {
+fn duplicates(a: &Chaptr, b: &Chaptr) -> bool {
     if (a.global - b.global).abs() > 45.0 {
         return false;
     }
@@ -235,10 +235,10 @@ pub fn run(
     rec: &Recording,
     segments: &[Segment],
     mut on_progress: impl FnMut(f64),
-) -> Result<Vec<Beat>> {
+) -> Result<Vec<Chaptr>> {
     let cfg = &llm.cfg;
     let step = cfg.window_secs - cfg.overlap_secs;
-    let mut out: Vec<Beat> = Vec::new();
+    let mut out: Vec<Chaptr> = Vec::new();
     let mut start = 0.0;
 
     while start < rec.duration {
@@ -264,7 +264,7 @@ pub fn run(
                         let Some(secs) = parse_hms(t).filter(|s| *s >= start && *s <= end) else {
                             continue;
                         };
-                        let beat = Beat {
+                        let beat = Chaptr {
                             global: rec.global_offset + secs,
                             recording_id: rec.id.clone(),
                             offset: secs,

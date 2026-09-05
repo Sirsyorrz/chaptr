@@ -22,7 +22,7 @@ impl Workspace {
     pub fn settings(&self) -> PathBuf {
         self.root.join("settings.json")
     }
-    pub fn beats(&self) -> PathBuf {
+    pub fn chaptrs(&self) -> PathBuf {
         self.root.join("beats.json")
     }
     pub fn edits(&self) -> PathBuf {

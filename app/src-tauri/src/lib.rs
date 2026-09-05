@@ -1,6 +1,7 @@
 pub mod asr;
 pub mod audio;
-pub mod beats;
+pub mod chaptrs;
+pub mod jobs;
 pub mod model;
 pub mod project;
 pub mod scan;
@@ -13,10 +14,10 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::State;
+use tauri::{Emitter, Manager, State};
 
 use asr::AsrConfig;
-use model::{Beat, Library, Transcript};
+use model::{Chaptr, Library, Transcript};
 use project::Project;
 use sidecar::Sidecars;
 use tracks::{Layout, Role, Settings};
@@ -24,6 +25,8 @@ use tracks::{Layout, Role, Settings};
 #[derive(Default)]
 pub struct App {
     pub library: Mutex<Option<Library>>,
+    pub cancel: jobs::Cancel,
+    pub running: Mutex<bool>,
 }
 
 fn models() -> AsrConfig {
@@ -150,26 +153,84 @@ fn set_roles(id: String, signature: String, roles: Vec<Role>) -> Result<(), Stri
 /// User edits live in a separate file, so re-running the beat pass never
 /// destroys them.
 #[tauri::command]
-fn load_beats(id: String) -> Vec<Beat> {
+fn load_chaptrs(id: String) -> Vec<Chaptr> {
     let ws = project::workspace(&id);
-    let src = if ws.edits().exists() { ws.edits() } else { ws.beats() };
-    workspace::maybe_json::<serde_json::Value>(&src)
-        .and_then(|v| serde_json::from_value(v["beats"].clone()).ok())
-        .unwrap_or_default()
+    let src = if ws.edits().exists() { ws.edits() } else { ws.chaptrs() };
+    workspace::maybe_json::<serde_json::Value>(&src).and_then(|v| {
+        // "beats" is the pre-rename key, still present in older projects.
+        let list = if v["chaptrs"].is_array() { &v["chaptrs"] } else { &v["beats"] };
+        serde_json::from_value(list.clone()).ok()
+    })
+    .unwrap_or_default()
 }
 
 #[tauri::command]
-fn save_beats(id: String, beats: Vec<Beat>) -> Result<usize, String> {
+fn save_chaptrs(id: String, chaptrs: Vec<Chaptr>) -> Result<usize, String> {
     let ws = project::workspace(&id);
     ws.prepare().map_err(|e| e.to_string())?;
-    workspace::write_json(&ws.edits(), &serde_json::json!({ "beats": beats }))
+    workspace::write_json(&ws.edits(), &serde_json::json!({ "chaptrs": chaptrs }))
         .map_err(|e| e.to_string())?;
-    Ok(beats.len())
+    Ok(chaptrs.len())
 }
 
 #[tauri::command]
 fn load_transcript(id: String, recording_id: String) -> Option<Transcript> {
     workspace::maybe_json(&project::workspace(&id).transcript(&recording_id))
+}
+
+/// Kicks off a long pass on a worker thread and streams `job` events. Only one
+/// runs at a time: both stages want the whole GPU.
+#[tauri::command]
+fn start_job(
+    app_handle: tauri::AppHandle,
+    app: State<App>,
+    id: String,
+    stage: String,
+) -> Result<(), String> {
+    {
+        let mut running = app.running.lock().unwrap();
+        if *running {
+            return Err("a job is already running".into());
+        }
+        *running = true;
+    }
+    app.cancel.reset();
+
+    let cancel = jobs::Cancel(app.cancel.0.clone());
+    let asr = models();
+    let llm = model_dir().join("Qwen3-14B-Q4_K_M.gguf");
+
+    std::thread::spawn(move || {
+        let result = match stage.as_str() {
+            "transcribe" => jobs::transcribe_all(&app_handle, &id, &asr, &cancel).map(|_| ()),
+            "chaptrs" => jobs::chaptrs_all(&app_handle, &id, llm, &cancel).map(|_| ()),
+            other => Err(anyhow::anyhow!("unknown stage {other}")),
+        };
+        if let Err(e) = result {
+            let _ = app_handle.emit(
+                "job",
+                jobs::Progress {
+                    stage,
+                    index: 0,
+                    total: 0,
+                    name: String::new(),
+                    fraction: 0.0,
+                    done: true,
+                    cancelled: false,
+                    message: String::new(),
+                    error: Some(e.to_string()),
+                },
+            );
+        }
+        let state: State<App> = app_handle.state();
+        *state.running.lock().unwrap() = false;
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn cancel_job(app: State<App>) {
+    app.cancel.request();
 }
 
 /// Everything that must exist before a job can run. Models are included
@@ -207,9 +268,11 @@ pub fn run() {
             save_settings,
             detect_tracks,
             set_roles,
-            load_beats,
-            save_beats,
+            load_chaptrs,
+            save_chaptrs,
             load_transcript,
+            start_job,
+            cancel_job,
             check_sidecars
         ])
         .run(tauri::generate_context!())

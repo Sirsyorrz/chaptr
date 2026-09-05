@@ -1,9 +1,9 @@
 import { useMemo, useRef } from "react";
 import { useStore } from "../state/store";
-import { hms, hoursMins, type Beat } from "../types";
+import { hms, hoursMins, type Chaptr } from "../types";
 
-export function Beats() {
-  const beats = useStore((s) => s.beats);
+export function Chaptrs() {
+  const chaptrs = useStore((s) => s.chaptrs);
   const library = useStore((s) => s.library);
   const selected = useStore((s) => s.selected);
   const query = useStore((s) => s.query);
@@ -22,19 +22,19 @@ export function Beats() {
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return beats
+    return chaptrs
       .map((b, i) => ({ b, i }))
       .filter(({ b }) => (starredOnly ? b.starred : true))
       .filter(({ b }) => (q ? b.text.toLowerCase().includes(q) : true));
-  }, [beats, query, starredOnly]);
+  }, [chaptrs, query, starredOnly]);
 
-  if (!beats.length) {
+  if (!chaptrs.length) {
     return (
       <div className="pane">
-        <div className="pane-h"><span>Beats</span></div>
+        <div className="pane-h"><span>Chaptrs</span></div>
         <p className="pad dim">
-          No beats yet. Scan the folder, confirm the track roles, then run the
-          transcribe and beats passes.
+          No chaptrs yet. Scan the folder, confirm the track roles, then run the
+          transcribe and chaptrs passes.
         </p>
       </div>
     );
@@ -45,14 +45,14 @@ export function Beats() {
   return (
     <div className="pane">
       <div className="pane-h">
-        <span>Beats</span>
-        <span className="count">{rows.length}{rows.length !== beats.length ? ` / ${beats.length}` : ""}</span>
+        <span>Chaptrs</span>
+        <span className="count">{rows.length}{rows.length !== chaptrs.length ? ` / ${chaptrs.length}` : ""}</span>
         <span className="spacer" />
-        <span className="dim">{beats.filter((b) => b.starred).length} starred</span>
+        <span className="dim">{chaptrs.filter((b) => b.starred).length} starred</span>
       </div>
 
       <div className="list" ref={listRef}>
-        {rows.map(({ b, i }: { b: Beat; i: number }) => {
+        {rows.map(({ b, i }: { b: Chaptr; i: number }) => {
           const meta = byId.get(b.recording_id);
           const header = meta && meta.session !== lastSession;
           if (header) lastSession = meta!.session;
@@ -70,7 +70,7 @@ export function Beats() {
                 <button
                   className="starbtn"
                   onClick={(e) => { e.stopPropagation(); star(i); }}
-                  title="Star this beat"
+                  title="Star this chaptr"
                 >
                   {b.starred ? "★" : "☆"}
                 </button>

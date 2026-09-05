@@ -69,7 +69,7 @@ pub struct Transcript {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Beat {
+pub struct Chaptr {
     /// Seconds from the start of the library.
     pub global: f64,
     pub recording_id: String,

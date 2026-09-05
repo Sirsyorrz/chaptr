@@ -2,15 +2,15 @@ import { useEffect, useMemo, useRef } from "react";
 import { useStore } from "../state/store";
 import { hms } from "../types";
 
-/** The lines behind the selected beat, so a vague beat can be checked. */
+/** The lines behind the selected chaptr, so a vague chaptr can be checked. */
 export function Transcript() {
   const transcript = useStore((s) => s.transcript);
-  const beats = useStore((s) => s.beats);
+  const chaptrs = useStore((s) => s.chaptrs);
   const selected = useStore((s) => s.selected);
   const boxRef = useRef<HTMLDivElement>(null);
   const hitRef = useRef<HTMLDivElement>(null);
 
-  const at = selected !== null ? beats[selected]?.offset ?? null : null;
+  const at = selected !== null ? chaptrs[selected]?.offset ?? null : null;
 
   const rows = useMemo(() => {
     if (!transcript || at === null) return [];
@@ -29,13 +29,13 @@ export function Transcript() {
   return (
     <div className="pane">
       <div className="pane-h">
-        <span>Around this beat</span>
+        <span>Around this chaptr</span>
         {labelled && <span className="count">host / friend</span>}
         <span className="spacer" />
         {transcript && <span className="dim">±90s</span>}
       </div>
       <div className="list" ref={boxRef}>
-        {selected === null && <p className="pad dim">Select a beat.</p>}
+        {selected === null && <p className="pad dim">Select a chaptr.</p>}
         {selected !== null && !transcript && (
           <p className="pad dim">No transcript for this recording.</p>
         )}

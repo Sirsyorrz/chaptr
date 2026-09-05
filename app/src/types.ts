@@ -58,7 +58,7 @@ export interface Library {
   recordings: Recording[];
 }
 
-export interface Beat {
+export interface Chaptr {
   global: number;
   recording_id: string;
   offset: number;
@@ -119,3 +119,15 @@ export const hoursMins = (s: number): string => {
   const m = Math.floor((s % 3600) / 60);
   return h ? `${h}h ${m}m` : `${m}m`;
 };
+
+export interface JobProgress {
+  stage: string;
+  index: number;
+  total: number;
+  name: string;
+  fraction: number;
+  done: boolean;
+  cancelled: boolean;
+  message: string;
+  error: string | null;
+}

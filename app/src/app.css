@@ -374,3 +374,31 @@ label.inline input { padding: 0; width: auto; }
 input.wide { width: 100%; margin-bottom: var(--sp-2); }
 
 .projsel { max-width: 300px; }
+
+.jobbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-sm);
+}
+.jstage {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+.bar {
+  flex: 1;
+  height: 4px;
+  background: var(--panel-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s linear;
+}
+button.warn { border-color: var(--sel); color: var(--sel); }

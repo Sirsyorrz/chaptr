@@ -8,12 +8,12 @@ use chaptr::asr::{self, AsrConfig};
 use chaptr::model::{Library, Recording, Transcript};
 use chaptr::sidecar::Sidecars;
 use chaptr::workspace::{self, Workspace};
-use chaptr::beats::{BeatConfig, Llm};
-use chaptr::model::Beat;
+use chaptr::chaptrs::{ChaptrConfig, Llm};
+use chaptr::model::Chaptr;
 use chaptr::tracks::{self, Layout, Settings};
 use chaptr::transcribe;
 use chaptr::project;
-use chaptr::{audio, beats, scan};
+use chaptr::{audio, chaptrs, scan};
 
 fn hms(secs: f64) -> String {
     let s = secs.max(0.0) as u64;
@@ -165,12 +165,12 @@ fn cmd_transcribe(folder: &str, limit: usize) -> Result<()> {
     Ok(())
 }
 
-fn cmd_beats(folder: &str, limit: usize) -> Result<()> {
+fn cmd_chaptrs(folder: &str, limit: usize) -> Result<()> {
     let (ws, lib) = load(folder)?;
     let model = std::env::var("CHAPTR_LLM")
         .map(PathBuf::from)
         .unwrap_or_else(|_| dirs_home().join("src/llm-models/Qwen3-14B-Q4_K_M.gguf"));
-    let cfg = BeatConfig::new(model);
+    let cfg = ChaptrConfig::new(model);
 
     // Reuse a server that is already up; otherwise own one for this run.
     let health = format!("http://127.0.0.1:{}/health", cfg.port);
@@ -182,7 +182,7 @@ fn cmd_beats(folder: &str, limit: usize) -> Result<()> {
         Llm::start(&Sidecars::discover(), cfg)?
     };
 
-    let mut all: Vec<Beat> = Vec::new();
+    let mut all: Vec<Chaptr> = Vec::new();
     for rec in lib.recordings.iter().take(limit) {
         let path = ws.transcript(&rec.id);
         if !path.exists() {
@@ -190,7 +190,7 @@ fn cmd_beats(folder: &str, limit: usize) -> Result<()> {
         }
         let tr: Transcript = workspace::read_json(&path)?;
         let t = std::time::Instant::now();
-        let got = beats::run(&llm, rec, &tr.segments, |_| {})?;
+        let got = chaptrs::run(&llm, rec, &tr.segments, |_| {})?;
         println!(
             "{:<28} {} -> {:>3} beats in {:.0}s",
             rec.name,
@@ -202,8 +202,8 @@ fn cmd_beats(folder: &str, limit: usize) -> Result<()> {
     }
 
     all.sort_by(|a, b| a.global.total_cmp(&b.global));
-    workspace::write_json(&ws.beats(), &serde_json::json!({ "beats": all }))?;
-    println!("\n{} beats -> {}", all.len(), ws.beats().display());
+    workspace::write_json(&ws.chaptrs(), &serde_json::json!({ "chaptrs": all }))?;
+    println!("\n{} chaptrs -> {}", all.len(), ws.chaptrs().display());
     Ok(())
 }
 
@@ -226,7 +226,7 @@ fn main() -> Result<()> {
         "scan" if !folder.is_empty() => cmd_scan(&args[2..], 45.0),
         "tracks" if !folder.is_empty() => cmd_tracks(&folder),
         "transcribe" if !folder.is_empty() => cmd_transcribe(&folder, limit),
-        "beats" if !folder.is_empty() => cmd_beats(&folder, limit),
+        "chaptrs" | "beats" if !folder.is_empty() => cmd_chaptrs(&folder, limit),
         "doctor" => {
             let missing = Sidecars::discover().missing();
             let cfg = models();
@@ -239,6 +239,6 @@ fn main() -> Result<()> {
             }
             Ok(())
         }
-        _ => bail!("usage: chaptr-cli <scan|tracks|transcribe|beats|projects|doctor> <folder-or-clip...> [limit]"),
+        _ => bail!("usage: chaptr-cli <scan|tracks|transcribe|chaptrs|projects|doctor> <folder-or-clip...> [limit]"),
     }
 }

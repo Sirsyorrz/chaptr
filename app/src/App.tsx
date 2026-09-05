@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useStore } from "./state/store";
-import { Beats } from "./panels/Beats";
+import { Chaptrs } from "./panels/Chaptrs";
 import { Transcript } from "./panels/Transcript";
 import { Tracks } from "./panels/Tracks";
-import { hoursMins } from "./types";
+import { hoursMins, type JobProgress } from "./types";
 
 export default function App() {
   const [showTracks, setShowTracks] = useState(false);
@@ -12,6 +13,8 @@ export default function App() {
 
   useEffect(() => {
     s.boot();
+    const un = listen<JobProgress>("job", (e) => useStore.getState().onJob(e.payload));
+    return () => { un.then((f) => f()); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -26,7 +29,7 @@ export default function App() {
         e.preventDefault();
         document.querySelector<HTMLInputElement>(".search")?.focus();
       } else if (!typing && s.selected !== null) {
-        if (e.key === "j" || e.key === "ArrowDown") s.select(Math.min(s.beats.length - 1, s.selected + 1));
+        if (e.key === "j" || e.key === "ArrowDown") s.select(Math.min(s.chaptrs.length - 1, s.selected + 1));
         if (e.key === "k" || e.key === "ArrowUp") s.select(Math.max(0, s.selected - 1));
         if (e.key === " ") { e.preventDefault(); s.star(s.selected); }
       }
@@ -72,10 +75,17 @@ export default function App() {
         <button onClick={pickFolder} title="Open a whole folder">Folder…</button>
         <button onClick={pickClips} title="Open individual clips">Clips…</button>
         <button onClick={s.rescan} disabled={!s.project || !!s.busy}>Scan</button>
+        <button onClick={() => s.runJob("transcribe")} disabled={!lib || !!s.busy}>
+          Transcribe
+        </button>
+        <button onClick={() => s.runJob("chaptrs")} disabled={!lib || !!s.busy}>
+          Find chaptrs
+        </button>
+        {s.busy && <button className="warn" onClick={s.cancelJob}>Stop</button>}
         <button onClick={() => setShowTracks(true)} disabled={!lib}>Tracks…</button>
         <input
           className="search"
-          placeholder="search beats  ( / )"
+          placeholder="search chaptrs  ( / )"
           value={s.query}
           onChange={(e) => s.setQuery(e.target.value)}
         />
@@ -95,8 +105,31 @@ export default function App() {
         </div>
       )}
 
+      {s.job && !s.job.done && (
+        <div className="jobbar">
+          <span className="jstage">{s.job.stage}</span>
+          <span className="dim">
+            {s.job.total ? `${s.job.index} / ${s.job.total}` : ""} {s.job.name}
+          </span>
+          <div className="bar">
+            <div
+              className="fill"
+              style={{
+                width: `${
+                  s.job.total
+                    ? ((s.job.index - 1 + s.job.fraction) / s.job.total) * 100
+                    : s.job.fraction * 100
+                }%`,
+              }}
+            />
+          </div>
+          <span className="mono dim">{(s.job.fraction * 100).toFixed(0)}%</span>
+          {s.job.message && <span className="dim">{s.job.message}</span>}
+        </div>
+      )}
+
       <div className="main">
-        <div className="left"><Beats /></div>
+        <div className="left"><Chaptrs /></div>
         <div className="right"><Transcript /></div>
       </div>
 
@@ -106,7 +139,7 @@ export default function App() {
             ? `${lib.recordings.length} recordings · ${lib.sessions.length} sessions · ${hoursMins(lib.total_duration)}`
             : "no folder"}
         </span>
-        <span className="dim">{s.beats.length} beats</span>
+        <span className="dim">{s.chaptrs.length} chaptrs</span>
         {s.busy && <span className="warn">{s.busy}…</span>}
         <span className="spacer" />
         <span className="dim">/ search · j k move · space star · ctrl+S save</span>

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { Beat, Layout, Library, Project, Role, Settings, Transcript } from "../types";
+import type { Chaptr, JobProgress, Layout, Library, Project, Role, Settings, Transcript } from "../types";
 
 const PROJECT_KEY = "chaptr.project";
 
@@ -10,7 +10,7 @@ interface State {
   library: Library | null;
   settings: Settings | null;
   layouts: Layout[];
-  beats: Beat[];
+  chaptrs: Chaptr[];
   transcript: Transcript | null;
   selected: number | null;
   query: string;
@@ -21,7 +21,11 @@ interface State {
   statusKind: "" | "ok" | "warn";
   missing: string[];
 
+  job: JobProgress | null;
   boot: () => Promise<void>;
+  runJob: (stage: "transcribe" | "chaptrs") => Promise<void>;
+  cancelJob: () => Promise<void>;
+  onJob: (p: JobProgress) => void;
   openSources: (sources: string[]) => Promise<void>;
   openProject: (id: string) => Promise<void>;
   forget: (id: string, deleteData: boolean) => Promise<void>;
@@ -46,7 +50,7 @@ export const useStore = create<State>((set, get) => ({
   library: null,
   settings: null,
   layouts: [],
-  beats: [],
+  chaptrs: [],
   transcript: null,
   selected: null,
   query: "",
@@ -56,8 +60,40 @@ export const useStore = create<State>((set, get) => ({
   status: "",
   statusKind: "",
   missing: [],
+  job: null,
 
   say: (status, statusKind = "") => set({ status, statusKind }),
+
+  runJob: async (stage) => {
+    const id = get().project?.id;
+    if (!id) return;
+    set({ job: null, busy: stage });
+    try {
+      await invoke("start_job", { id, stage });
+    } catch (e) {
+      set({ busy: "" });
+      get().say(String(e), "warn");
+    }
+  },
+
+  cancelJob: async () => {
+    await invoke("cancel_job");
+    get().say("stopping after this file…", "warn");
+  },
+
+  /// Streamed from the backend while a pass runs.
+  onJob: (p) => {
+    set({ job: p });
+    if (p.error) get().say(p.error, "warn");
+    if (!p.done) return;
+    set({ busy: "", job: null });
+    if (p.cancelled) get().say("stopped", "warn");
+    else if (!p.error) get().say(p.message || "finished", "ok");
+    const id = get().project?.id;
+    if (id && p.stage === "chaptrs") {
+      invoke<Chaptr[]>("load_chaptrs", { id }).then((chaptrs) => set({ chaptrs, dirty: false }));
+    }
+  },
 
   boot: async () => {
     set({ missing: await invoke<string[]>("check_sidecars") });
@@ -82,14 +118,14 @@ export const useStore = create<State>((set, get) => ({
 
   openProject: async (id) => {
     localStorage.setItem(PROJECT_KEY, id);
-    set({ busy: "loading", selected: null, transcript: null, beats: [] });
+    set({ busy: "loading", selected: null, transcript: null, chaptrs: [] });
     try {
       const projects = await invoke<Project[]>("list_projects");
       const project = projects.find((p) => p.id === id) ?? null;
       const library = await invoke<Library | null>("load_library", { id });
       const settings = await invoke<Settings>("get_settings", { id });
-      const beats = await invoke<Beat[]>("load_beats", { id });
-      set({ project, projects, library, settings, beats, layouts: [], dirty: false, busy: "" });
+      const chaptrs = await invoke<Chaptr[]>("load_chaptrs", { id });
+      set({ project, projects, library, settings, chaptrs, layouts: [], dirty: false, busy: "" });
       if (!library) get().say("not scanned yet — press Scan", "warn");
     } catch (e) {
       set({ busy: "" });
@@ -102,7 +138,7 @@ export const useStore = create<State>((set, get) => ({
     const projects = await invoke<Project[]>("list_projects");
     set({ projects });
     if (get().project?.id === id) {
-      set({ project: null, library: null, beats: [], transcript: null });
+      set({ project: null, library: null, chaptrs: [], transcript: null });
       if (projects[0]) await get().openProject(projects[0].id);
     }
   },
@@ -162,9 +198,9 @@ export const useStore = create<State>((set, get) => ({
 
   select: async (i) => {
     set({ selected: i });
-    const { beats, project, transcript } = get();
+    const { chaptrs, project, transcript } = get();
     if (i === null) return;
-    const id = beats[i]?.recording_id;
+    const id = chaptrs[i]?.recording_id;
     if (!id || transcript?.recording_id === id) return;
     const t = await invoke<Transcript | null>("load_transcript", { id: project!.id, recordingId: id });
     set({ transcript: t });
@@ -174,28 +210,28 @@ export const useStore = create<State>((set, get) => ({
   toggleStarredOnly: () => set({ starredOnly: !get().starredOnly }),
 
   star: (i) => {
-    const beats = get().beats.slice();
-    beats[i] = { ...beats[i], starred: !beats[i].starred };
-    set({ beats, dirty: true });
+    const chaptrs = get().chaptrs.slice();
+    chaptrs[i] = { ...chaptrs[i], starred: !chaptrs[i].starred };
+    set({ chaptrs, dirty: true });
   },
 
   edit: (i, text) => {
-    const beats = get().beats.slice();
-    beats[i] = { ...beats[i], text };
-    set({ beats, dirty: true });
+    const chaptrs = get().chaptrs.slice();
+    chaptrs[i] = { ...chaptrs[i], text };
+    set({ chaptrs, dirty: true });
   },
 
   remove: (i) => {
-    const beats = get().beats.slice();
-    beats.splice(i, 1);
-    set({ beats, dirty: true, selected: null });
+    const chaptrs = get().chaptrs.slice();
+    chaptrs.splice(i, 1);
+    set({ chaptrs, dirty: true, selected: null });
   },
 
   save: async () => {
-    const { project, beats } = get();
+    const { project, chaptrs } = get();
     if (!project) return;
     try {
-      await invoke("save_beats", { id: project.id, beats });
+      await invoke("save_chaptrs", { id: project.id, chaptrs });
       set({ dirty: false });
       get().say("saved", "ok");
     } catch (e) {
