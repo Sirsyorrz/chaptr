@@ -23,10 +23,10 @@ impl Workspace {
         self.root.join("settings.json")
     }
     pub fn chaptrs(&self) -> PathBuf {
-        self.root.join("beats.json")
+        pick(&self.root, "chaptrs.json", "beats.json")
     }
     pub fn edits(&self) -> PathBuf {
-        self.root.join("beats.edits.json")
+        pick(&self.root, "chaptrs.edits.json", "beats.edits.json")
     }
     pub fn transcript(&self, id: &str) -> PathBuf {
         self.root.join("transcripts").join(format!("{id}.json"))
@@ -49,6 +49,17 @@ impl Workspace {
     pub fn clear_scratch(&self) {
         let _ = fs::remove_dir_all(self.root.join("scratch"));
         let _ = fs::create_dir_all(self.root.join("scratch"));
+    }
+}
+
+/// Current filename, falling back to the pre-rename one for older projects.
+fn pick(root: &Path, current: &str, legacy: &str) -> PathBuf {
+    let now = root.join(current);
+    let before = root.join(legacy);
+    if !now.exists() && before.exists() {
+        before
+    } else {
+        now
     }
 }
 

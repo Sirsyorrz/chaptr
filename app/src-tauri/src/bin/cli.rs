@@ -227,6 +227,20 @@ fn main() -> Result<()> {
         "tracks" if !folder.is_empty() => cmd_tracks(&folder),
         "transcribe" if !folder.is_empty() => cmd_transcribe(&folder, limit),
         "chaptrs" | "beats" if !folder.is_empty() => cmd_chaptrs(&folder, limit),
+        "dump" if !folder.is_empty() => {
+            let (id, ws) = resolve(&folder)?;
+            let src = if ws.edits().exists() { ws.edits() } else { ws.chaptrs() };
+            println!("project {id}\n  reading {}", src.display());
+            let raw: serde_json::Value = workspace::read_json(&src)?;
+            let key = if raw["chaptrs"].is_array() { "chaptrs" } else { "beats" };
+            let list: Vec<chaptr::model::Chaptr> =
+                serde_json::from_value(raw[key].clone())?;
+            println!("  key {key}, {} chaptrs", list.len());
+            for c in list.iter().take(3) {
+                println!("    {:.0}s {}", c.global, c.text);
+            }
+            Ok(())
+        }
         "doctor" => {
             let missing = Sidecars::discover().missing();
             let cfg = models();
