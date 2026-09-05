@@ -59,10 +59,14 @@ pub fn transcribe(
         .arg("-vm").arg(&cfg.vad_model)
         // Stops the model narrating music stings and gunfire as dialogue.
         .arg("-sns")
+        // Results come from the JSON file, so the running transcript on stdout
+        // is dead weight. Printing it and not draining the pipe deadlocks the
+        // child once 64 KB have accumulated, which a long recording always hits.
+        .arg("-np")
         .arg("-pp")
         .arg("-oj")
         .arg("-of").arg(&stem)
-        .stdout(Stdio::piped())
+        .stdout(Stdio::null())
         .stderr(Stdio::piped());
 
     let mut child = cmd.spawn().context("spawning whisper-cli")?;

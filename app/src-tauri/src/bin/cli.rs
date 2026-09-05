@@ -8,7 +8,9 @@ use chaptr::asr::{self, AsrConfig};
 use chaptr::model::{Library, Recording, Transcript};
 use chaptr::sidecar::Sidecars;
 use chaptr::workspace::{self, Workspace};
-use chaptr::{audio, scan};
+use chaptr::beats::{BeatConfig, Llm};
+use chaptr::model::Beat;
+use chaptr::{audio, beats, scan};
 
 fn hms(secs: f64) -> String {
     let s = secs.max(0.0) as u64;
@@ -144,6 +146,48 @@ fn cmd_transcribe(folder: &str, limit: usize) -> Result<()> {
     Ok(())
 }
 
+fn cmd_beats(folder: &str, limit: usize) -> Result<()> {
+    let (ws, lib) = load(folder)?;
+    let model = std::env::var("CHAPTR_LLM")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| dirs_home().join("src/llm-models/Qwen3-14B-Q4_K_M.gguf"));
+    let cfg = BeatConfig::new(model);
+
+    // Reuse a server that is already up; otherwise own one for this run.
+    let health = format!("http://127.0.0.1:{}/health", cfg.port);
+    let llm = if ureq::get(&health).timeout(std::time::Duration::from_secs(2)).call().is_ok() {
+        println!("using running llama-server on :{}", cfg.port);
+        Llm::attach(cfg)
+    } else {
+        println!("starting llama-server ...");
+        Llm::start(&Sidecars::discover(), cfg)?
+    };
+
+    let mut all: Vec<Beat> = Vec::new();
+    for rec in lib.recordings.iter().take(limit) {
+        let path = ws.transcript(&rec.id);
+        if !path.exists() {
+            continue;
+        }
+        let tr: Transcript = workspace::read_json(&path)?;
+        let t = std::time::Instant::now();
+        let got = beats::run(&llm, rec, &tr.segments, |_| {})?;
+        println!(
+            "{:<28} {} -> {:>3} beats in {:.0}s",
+            rec.name,
+            hms(rec.duration),
+            got.len(),
+            t.elapsed().as_secs_f64()
+        );
+        all.extend(got);
+    }
+
+    all.sort_by(|a, b| a.global.total_cmp(&b.global));
+    workspace::write_json(&ws.beats(), &serde_json::json!({ "beats": all }))?;
+    println!("\n{} beats -> {}", all.len(), ws.beats().display());
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let sub = args.get(1).map(String::as_str).unwrap_or("");
@@ -154,6 +198,7 @@ fn main() -> Result<()> {
         "scan" if !folder.is_empty() => cmd_scan(&folder, 45.0),
         "tracks" if !folder.is_empty() => cmd_tracks(&folder),
         "transcribe" if !folder.is_empty() => cmd_transcribe(&folder, limit),
+        "beats" if !folder.is_empty() => cmd_beats(&folder, limit),
         "doctor" => {
             let missing = Sidecars::discover().missing();
             let cfg = models();
@@ -166,6 +211,6 @@ fn main() -> Result<()> {
             }
             Ok(())
         }
-        _ => bail!("usage: chaptr-cli <scan|tracks|transcribe|doctor> <folder> [limit]"),
+        _ => bail!("usage: chaptr-cli <scan|tracks|transcribe|beats|doctor> <folder> [limit]"),
     }
 }

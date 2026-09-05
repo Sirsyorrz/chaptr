@@ -1,5 +1,6 @@
 pub mod asr;
 pub mod audio;
+pub mod beats;
 pub mod model;
 pub mod scan;
 pub mod sidecar;
