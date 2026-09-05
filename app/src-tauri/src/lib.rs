@@ -1,5 +1,6 @@
 pub mod asr;
 pub mod audio;
+pub mod bundle;
 pub mod chaptrs;
 pub mod jobs;
 pub mod model;
@@ -85,6 +86,7 @@ fn scan_project(app: State<App>, id: String, gap_minutes: Option<f64>) -> Result
     ws.prepare().map_err(|e| e.to_string())?;
     workspace::write_json(&ws.library(), &library).map_err(|e| e.to_string())?;
     project::touch(&id, library.recordings.len(), library.total_duration);
+    project::mark_unsaved(&id);
 
     *app.library.lock().unwrap() = Some(library.clone());
     Ok(ScanResult { library, problems })
@@ -170,8 +172,9 @@ fn load_chaptrs(id: String) -> Vec<Chaptr> {
 fn save_chaptrs(id: String, chaptrs: Vec<Chaptr>) -> Result<usize, String> {
     let ws = project::workspace(&id);
     ws.prepare().map_err(|e| e.to_string())?;
-    workspace::write_json(&ws.edits(), &serde_json::json!({ "chaptrs": chaptrs }))
+    workspace::write_json(&ws.root.join("chaptrs.edits.json"), &serde_json::json!({ "chaptrs": chaptrs }))
         .map_err(|e| e.to_string())?;
+    project::mark_unsaved(&id);
     Ok(chaptrs.len())
 }
 
@@ -277,6 +280,60 @@ fn file_status(id: String) -> Vec<FileStatus> {
 
 /// Everything that must exist before a job can run. Models are included
 /// because a missing one otherwise surfaces deep into a long pass.
+/// Writes the whole project to a single file the user chooses. Everything up
+/// to now lived in a working cache; this is the copy they own.
+#[tauri::command]
+fn save_project(id: String, path: Option<String>) -> Result<String, String> {
+    let p = project::get(&id).ok_or("unknown project")?;
+    let dest = match path.or(p.file.clone()) {
+        Some(d) => PathBuf::from(d),
+        None => return Err("no file chosen yet".into()),
+    };
+    let dest = if dest.extension().is_some() {
+        dest
+    } else {
+        dest.with_extension(bundle::EXTENSION)
+    };
+
+    let ws = project::workspace(&id);
+    bundle::save(&ws, &p.name, &p.sources, &dest).map_err(|e| e.to_string())?;
+
+    let shown = dest.to_string_lossy().into_owned();
+    let name = dest
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| p.name.clone());
+    project::update(&id, |p| {
+        p.file = Some(shown.clone());
+        p.name = name;
+        p.unsaved = false;
+    });
+    Ok(shown)
+}
+
+/// Opens a saved .chaptr file, restoring its working directory.
+#[tauri::command]
+fn open_project_file(path: String) -> Result<Project, String> {
+    let file = PathBuf::from(&path);
+    let b = bundle::read(&file).map_err(|e| e.to_string())?;
+
+    let mut p = project::open(b.sources.clone()).map_err(|e| e.to_string())?;
+    let ws = project::workspace(&p.id);
+    bundle::unpack(&b, &ws).map_err(|e| e.to_string())?;
+
+    p.file = Some(path);
+    p.name = file
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or(p.name);
+    p.unsaved = false;
+    if let Some(lib) = &b.library {
+        p.recordings = lib.recordings.len();
+        p.duration = lib.total_duration;
+    }
+    project::put_project(p).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn check_sidecars() -> Vec<String> {
     let mut missing = Sidecars::discover().missing();
@@ -317,6 +374,8 @@ pub fn run() {
             cancel_job,
             job_status,
             file_status,
+            save_project,
+            open_project_file,
             check_sidecars
         ])
         .run(tauri::generate_context!())

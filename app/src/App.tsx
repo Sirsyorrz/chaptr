@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { useStore } from "./state/store";
 import { Chaptrs } from "./panels/Chaptrs";
 import { Files } from "./panels/Files";
@@ -15,7 +15,14 @@ export default function App() {
   useEffect(() => {
     s.boot();
     const un = listen<JobProgress>("job", (e) => useStore.getState().onJob(e.payload));
-    return () => { un.then((f) => f()); };
+    const warn = (e: BeforeUnloadEvent) => {
+      if (useStore.getState().project?.unsaved) e.preventDefault();
+    };
+    addEventListener("beforeunload", warn);
+    return () => {
+      un.then((f) => f());
+      removeEventListener("beforeunload", warn);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -25,7 +32,8 @@ export default function App() {
       const typing = tag === "INPUT" || tag === "TEXTAREA";
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
-        s.save();
+        if (s.dirty) s.save();
+        if (s.project?.file) s.saveProject();
       } else if (!typing && e.key === "/") {
         e.preventDefault();
         document.querySelector<HTMLInputElement>(".search")?.focus();
@@ -38,6 +46,23 @@ export default function App() {
     addEventListener("keydown", onKey);
     return () => removeEventListener("keydown", onKey);
   });
+
+  const openProjectFile = async () => {
+    const f = await openDialog({
+      title: "Open a chaptr project",
+      filters: [{ name: "chaptr project", extensions: ["chaptr"] }],
+    });
+    if (typeof f === "string") s.openFile_(f);
+  };
+
+  const saveAs = async () => {
+    const f = await saveDialog({
+      title: "Save chaptr project",
+      defaultPath: `${s.project?.name ?? "project"}.chaptr`,
+      filters: [{ name: "chaptr project", extensions: ["chaptr"] }],
+    });
+    if (typeof f === "string") s.saveProject(f);
+  };
 
   const pickFolder = async () => {
     const dir = await openDialog({ directory: true, title: "Pick a folder of recordings" });
@@ -73,8 +98,9 @@ export default function App() {
             </option>
           ))}
         </select>
-        <button onClick={pickFolder} title="Open a whole folder">Folder…</button>
-        <button onClick={pickClips} title="Open individual clips">Clips…</button>
+        <button onClick={pickFolder} title="Import a whole folder">Folder…</button>
+        <button onClick={pickClips} title="Import individual clips">Clips…</button>
+        <button onClick={openProjectFile} title="Open a saved .chaptr project">Open…</button>
         <button onClick={s.rescan} disabled={!s.project || !!s.busy}>Scan</button>
         <button onClick={() => s.runJob("transcribe")} disabled={!lib || !!s.busy}>
           Transcribe
@@ -95,9 +121,18 @@ export default function App() {
           starred
         </label>
         <span className="spacer" />
-        <button className={s.dirty ? "accent" : ""} onClick={s.save} disabled={!s.dirty}>
-          Save
+        <button onClick={s.save} disabled={!s.dirty} title="Keep chaptr edits">
+          Apply edits
         </button>
+        <button
+          className={s.project?.unsaved ? "accent" : ""}
+          onClick={() => (s.project?.file ? s.saveProject() : saveAs())}
+          disabled={!s.project || !!s.busy}
+          title={s.project?.file ?? "Not saved yet"}
+        >
+          Save project{s.project?.unsaved ? " •" : ""}
+        </button>
+        <button onClick={saveAs} disabled={!s.project || !!s.busy}>Save as…</button>
       </div>
 
       {s.missing.length > 0 && (
@@ -151,6 +186,13 @@ export default function App() {
             : "no folder"}
         </span>
         <span className="dim">{s.chaptrs.length} chaptrs</span>
+        {s.project && (
+          <span className={s.project.unsaved ? "warn" : "dim"}>
+            {s.project.file
+              ? s.project.file.split("/").pop() + (s.project.unsaved ? " • unsaved" : "")
+              : "not saved"}
+          </span>
+        )}
         {s.busy && <span className="warn">{s.busy}…</span>}
         <span className="spacer" />
         <span className="dim">/ search · j k move · space star · ctrl+S save</span>

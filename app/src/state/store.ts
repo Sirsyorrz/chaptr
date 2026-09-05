@@ -36,6 +36,8 @@ interface State {
   openSources: (sources: string[]) => Promise<void>;
   openProject: (id: string) => Promise<void>;
   forget: (id: string, deleteData: boolean) => Promise<void>;
+  saveProject: (path?: string) => Promise<void>;
+  openFile_: (path: string) => Promise<void>;
   rescan: () => Promise<void>;
   detect: () => Promise<void>;
   setRole: (signature: string, index: number, role: Role) => Promise<void>;
@@ -129,6 +131,9 @@ export const useStore = create<State>((set, get) => ({
     if (!id) return;
     get().refreshFiles();
     invoke<Chaptr[]>("load_chaptrs", { id }).then((chaptrs) => set({ chaptrs, dirty: false }));
+    invoke<Project[]>("list_projects").then((projects) =>
+      set({ projects, project: projects.find((x) => x.id === id) ?? get().project }),
+    );
   },
 
   boot: async () => {
@@ -165,6 +170,38 @@ export const useStore = create<State>((set, get) => ({
             viewing: null, transcript: null });
       get().refreshFiles();
       if (!library) get().say("not scanned yet — press Scan", "warn");
+    } catch (e) {
+      set({ busy: "" });
+      get().say(String(e), "warn");
+    }
+  },
+
+  saveProject: async (path) => {
+    const p = get().project;
+    if (!p) return;
+    if (!path && !p.file) return get().say("pick a location with Save As", "warn");
+    set({ busy: "saving" });
+    try {
+      const where = await invoke<string>("save_project", { id: p.id, path: path ?? null });
+      const projects = await invoke<Project[]>("list_projects");
+      set({
+        projects,
+        project: projects.find((x) => x.id === p.id) ?? null,
+        busy: "",
+      });
+      get().say(`saved to ${where.split("/").pop()}`, "ok");
+    } catch (e) {
+      set({ busy: "" });
+      get().say(String(e), "warn");
+    }
+  },
+
+  openFile_: async (path) => {
+    set({ busy: "opening" });
+    try {
+      const p = await invoke<Project>("open_project_file", { path });
+      set({ busy: "" });
+      await get().openProject(p.id);
     } catch (e) {
       set({ busy: "" });
       get().say(String(e), "warn");

@@ -31,4 +31,5 @@ chrono = "0.4"
 regex = "1"
 walkdir = "2"
 blake3 = "1"
+flate2 = "1"
 ureq = { version = "2", features = ["json"] }

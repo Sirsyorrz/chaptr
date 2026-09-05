@@ -143,6 +143,7 @@ pub fn transcribe_all(
     }
 
     ws.clear_scratch();
+    project::mark_unsaved(id);
     p.done = true;
     p.message = format!("transcribed {count} recordings");
     emit(app, &p);
@@ -217,6 +218,7 @@ pub fn chaptrs_all(
         &serde_json::json!({ "chaptrs": all }),
     )?;
 
+    project::mark_unsaved(id);
     p.done = true;
     p.message = format!("{} chaptrs", all.len());
     emit(app, &p);

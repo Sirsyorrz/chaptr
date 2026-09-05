@@ -20,6 +20,12 @@ pub struct Project {
     pub recordings: usize,
     #[serde(default)]
     pub duration: f64,
+    /// Where the user saved this project, once they have.
+    #[serde(default)]
+    pub file: Option<String>,
+    /// Work exists that is not in the saved file yet.
+    #[serde(default)]
+    pub unsaved: bool,
 }
 
 pub fn data_root() -> PathBuf {
@@ -112,6 +118,8 @@ pub fn open(sources: Vec<String>) -> Result<Project> {
             opened: now,
             recordings: 0,
             duration: 0.0,
+            file: None,
+            unsaved: false,
         },
     };
     workspace(&id).prepare()?;
@@ -119,12 +127,28 @@ pub fn open(sources: Vec<String>) -> Result<Project> {
 }
 
 pub fn touch(id: &str, recordings: usize, duration: f64) {
-    let mut all = list();
-    if let Some(p) = all.iter_mut().find(|p| p.id == id) {
+    update(id, |p| {
         p.recordings = recordings;
         p.duration = duration;
+    });
+}
+
+pub fn update(id: &str, f: impl FnOnce(&mut Project)) {
+    let mut all = list();
+    if let Some(p) = all.iter_mut().find(|p| p.id == id) {
+        f(p);
         let _ = workspace::write_json(&registry(), &all);
     }
+}
+
+/// Anything that produces new results marks the project unsaved, so the UI can
+/// say so rather than letting hours of work sit only in the working cache.
+pub fn mark_unsaved(id: &str) {
+    update(id, |p| p.unsaved = true);
+}
+
+pub fn put_project(p: Project) -> Result<Project> {
+    put(p)
 }
 
 pub fn forget(id: &str, delete_data: bool) -> Result<()> {

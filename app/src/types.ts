@@ -48,6 +48,8 @@ export interface Project {
   opened: string;
   recordings: number;
   duration: number;
+  file: string | null;
+  unsaved: boolean;
 }
 
 export interface Library {

@@ -241,6 +241,27 @@ fn main() -> Result<()> {
             }
             Ok(())
         }
+        "save" if !folder.is_empty() => {
+            let (id, ws) = resolve(&folder)?;
+            let p = project::get(&id).unwrap();
+            let dest = PathBuf::from(args.get(3).cloned().unwrap_or_else(|| format!("{}.chaptr", p.name)));
+            let size = chaptr::bundle::save(&ws, &p.name, &p.sources, &dest)?;
+            println!("wrote {} ({:.1} KB)", dest.display(), size as f64 / 1024.0);
+            Ok(())
+        }
+        "open" if !folder.is_empty() => {
+            let b = chaptr::bundle::read(&PathBuf::from(&folder))?;
+            println!(
+                "{}  v{}  {} sources  {} transcripts  library={}  chaptrs={}",
+                b.name,
+                b.version,
+                b.sources.len(),
+                b.transcripts.len(),
+                b.library.as_ref().map_or(0, |l| l.recordings.len()),
+                b.chaptrs["chaptrs"].as_array().map_or(0, |a| a.len()),
+            );
+            Ok(())
+        }
         "doctor" => {
             let missing = Sidecars::discover().missing();
             let cfg = models();

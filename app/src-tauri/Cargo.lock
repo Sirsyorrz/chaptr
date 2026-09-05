@@ -335,6 +335,7 @@ dependencies = [
  "anyhow",
  "blake3",
  "chrono",
+ "flate2",
  "regex",
  "serde",
  "serde_json",
