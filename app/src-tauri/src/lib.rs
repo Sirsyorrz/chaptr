@@ -1,3 +1,4 @@
+pub mod asr;
 pub mod audio;
 pub mod model;
 pub mod scan;
