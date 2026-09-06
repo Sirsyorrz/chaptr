@@ -9,41 +9,60 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-const SCRIPT: &str = include_str!("../../../resolve/chaptr link.lua");
+const SCRIPT: &str = include_str!("../../../resolve/Chaptr Link.lua");
+const NAME: &str = "Chaptr Link.lua";
+/// Earlier builds installed a lowercase name; left behind it shows up as a
+/// second, stale entry in Resolve's Scripts menu.
+const OLD_NAME: &str = "chaptr link.lua";
 
 /// Where chaptr writes and the Lua script reads. Must match `requestPath()`.
 pub fn request_file() -> PathBuf {
     crate::project::data_root().join("goto.txt")
 }
 
-/// Resolve's per-user script folder, where a file becomes a Workspace > Scripts
-/// entry named after it.
-pub fn scripts_dir() -> Option<PathBuf> {
+/// Every place Resolve looks for user scripts. Resolve's own README documents
+/// the Windows path as `%APPDATA%\Roaming\...`, but `%APPDATA%` already ends in
+/// Roaming, so both spellings are tried rather than trusting either.
+fn candidates() -> Vec<PathBuf> {
+    let mut out = Vec::new();
     #[cfg(windows)]
     {
-        let appdata = std::env::var_os("APPDATA")?;
-        Some(
-            PathBuf::from(appdata)
-                .join("Blackmagic Design")
-                .join("DaVinci Resolve")
-                .join("Support")
-                .join("Fusion")
-                .join("Scripts")
-                .join("Utility"),
-        )
+        if let Some(appdata) = std::env::var_os("APPDATA") {
+            let base = PathBuf::from(appdata);
+            for prefix in [base.clone(), base.join("Roaming")] {
+                out.push(
+                    prefix
+                        .join("Blackmagic Design")
+                        .join("DaVinci Resolve")
+                        .join("Support")
+                        .join("Fusion")
+                        .join("Scripts")
+                        .join("Utility"),
+                );
+            }
+        }
     }
     #[cfg(not(windows))]
     {
-        let home = std::env::var_os("HOME")?;
-        Some(
-            PathBuf::from(home)
-                .join(".local/share/DaVinciResolve/Fusion/Scripts/Utility"),
-        )
+        if let Some(home) = std::env::var_os("HOME") {
+            out.push(PathBuf::from(home).join(".local/share/DaVinciResolve/Fusion/Scripts/Utility"));
+        }
     }
+    out
+}
+
+/// Prefer a folder Resolve has actually created; otherwise the first candidate,
+/// which is what gets created on install.
+pub fn scripts_dir() -> Option<PathBuf> {
+    let all = candidates();
+    all.iter()
+        .find(|d| d.exists())
+        .cloned()
+        .or_else(|| all.first().cloned())
 }
 
 pub fn installed() -> bool {
-    scripts_dir().is_some_and(|d| d.join("chaptr link.lua").exists())
+    candidates().iter().any(|d| d.join(NAME).exists())
 }
 
 /// Copy the watcher into Resolve's scripts folder. Resolve picks it up without
@@ -51,8 +70,11 @@ pub fn installed() -> bool {
 pub fn install() -> Result<PathBuf> {
     let dir = scripts_dir().context("could not work out Resolve's scripts folder")?;
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
-    let dest = dir.join("chaptr link.lua");
+    let dest = dir.join(NAME);
     std::fs::write(&dest, SCRIPT).with_context(|| format!("writing {}", dest.display()))?;
+    for d in candidates() {
+        let _ = std::fs::remove_file(d.join(OLD_NAME));
+    }
     Ok(dest)
 }
 
