@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog, save as saveDialog, confirm } from "@tauri-apps/plugin-dialog";
 import { useStore } from "./state/store";
 import { Chaptrs } from "./panels/Chaptrs";
 import { Transcribes } from "./panels/Transcribes";
@@ -69,6 +69,14 @@ export default function App() {
       filters: [{ name: "chaptr project", extensions: ["chaptr"] }],
     });
     if (typeof f === "string") s.saveProject(f);
+  };
+
+  const deleteProject = async (id: string, name: string) => {
+    const ok = await confirm(
+      `Delete "${name}"?\n\nIts transcripts and chaptrs are deleted. Your recordings are not touched.`,
+      { title: "Delete project", kind: "warning", okLabel: "Delete" },
+    );
+    if (ok) await s.forget(id, true);
   };
 
   const importClips = async () => {
@@ -178,15 +186,25 @@ export default function App() {
             <div className="recent">
               <h3>Recent</h3>
               {s.projects.map((p) => (
-                <button key={p.id} className="recent-row" onClick={() => s.openProject(p.id)}>
+                <div key={p.id} className="recent-row" onClick={() => s.openProject(p.id)}>
                   <span className="recent-name">{p.name}</span>
                   <span className="recent-meta">
                     {p.recordings} {p.recordings === 1 ? "recording" : "recordings"}
                     {p.duration > 0 && ` · ${hoursMins(p.duration)}`}
                     {p.unsaved && " · unsaved"}
                   </span>
+                  <button
+                    className="recent-del"
+                    title="Delete this project"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteProject(p.id, p.name);
+                    }}
+                  >
+                    ×
+                  </button>
                   <span className="recent-path">{p.sources[0] ?? ""}</span>
-                </button>
+                </div>
               ))}
             </div>
           )}

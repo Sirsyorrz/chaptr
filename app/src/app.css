@@ -481,7 +481,8 @@ button.warn { border-color: var(--sel); color: var(--sel); }
 }
 .recent-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
   gap: 0 var(--sp-2);
   width: 100%;
   padding: var(--sp-2);
@@ -494,6 +495,19 @@ button.warn { border-color: var(--sel); color: var(--sel); }
 .recent-row:hover { background: var(--row-hover); border-color: var(--line); }
 .recent-name { color: var(--fg); font-size: var(--fs); }
 .recent-meta { color: var(--fg-faint); font-size: var(--fs-sm); white-space: nowrap; }
+.recent-del {
+  padding: 0 var(--sp-2);
+  border: none;
+  background: none;
+  color: var(--fg-faint);
+  font-size: var(--fs-lg);
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+.recent-row:hover .recent-del { opacity: 1; }
+.recent-del:hover { color: var(--bad); }
+
 .recent-path {
   grid-column: 1 / -1;
   color: var(--fg-faint);

@@ -214,6 +214,13 @@ fn main() -> Result<()> {
     let limit = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(usize::MAX);
 
     match sub {
+        "forget" if !folder.is_empty() => {
+            let name = project::get(&folder).map(|p| p.name).unwrap_or_default();
+            project::forget(&folder, true)?;
+            println!("deleted {folder} {name}");
+            Ok(())
+        }
+
         "projects" => {
             for p in project::list() {
                 println!(
@@ -327,6 +334,6 @@ fn main() -> Result<()> {
             }
             Ok(())
         }
-        _ => bail!("usage: chaptr-cli <scan|tracks|transcribe|chaptrs|projects|doctor> <folder-or-clip...> [limit]"),
+        _ => bail!("usage: chaptr-cli <scan|tracks|transcribe|chaptrs|projects|forget|doctor> <folder-or-clip...> [limit]"),
     }
 }
