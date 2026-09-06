@@ -76,6 +76,28 @@ local function findFrame(timeline, wanted, offset, fps)
   return nil
 end
 
+-- Resolve exposes no way to stop playback from a script, and a seek issued
+-- while the timeline is rolling is sometimes ignored. Set it, check whether it
+-- took, and try again for a moment before giving up.
+local function seek(timeline, frame, fps)
+  local want = timecode(frame, fps)
+  for attempt = 1, 8 do
+    timeline:SetCurrentTimecode(want)
+    bmd.wait(0.04)
+    local now = timeline:GetCurrentTimecode()
+    if now == want then return true, attempt end
+    -- While playing, the playhead moves on after landing, so anything close
+    -- counts as having worked.
+    local h, m, s, f = tostring(now):match("(%d+):(%d+):(%d+):(%d+)")
+    if h then
+      local rate = math.floor(fps + 0.5)
+      local at = ((tonumber(h) * 60 + tonumber(m)) * 60 + tonumber(s)) * rate + tonumber(f)
+      if math.abs(at - frame) < rate * 2 then return true, attempt end
+    end
+  end
+  return false, 8
+end
+
 local resolve = Resolve()
 local path = requestPath()
 local last = nil
@@ -98,7 +120,11 @@ while true do
         local fps = tonumber(timeline:GetSetting("timelineFrameRate")) or 30
         local frame = findFrame(timeline, basename(file), tonumber(offset), fps)
         if frame then
-          timeline:SetCurrentTimecode(timecode(frame, fps))
+          local ok, tries = seek(timeline, frame, fps)
+          if not ok then
+            print("could not move the playhead to " .. timecode(frame, fps)
+              .. " after " .. tries .. " tries - stop playback and click again")
+          end
         else
           print("not on this timeline: " .. file .. " at " .. offset .. "s")
         end
