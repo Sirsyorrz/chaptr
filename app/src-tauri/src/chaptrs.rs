@@ -378,6 +378,10 @@ pub fn run(
             segments.iter().filter(|s| s.start >= start && s.start < end).collect();
 
         if window.len() >= 3 {
+            // Speaker markers are deliberately NOT passed to the model. Doing so
+            // measured worse across 4.35 hours: it swaps real names for "the
+            // host" and "a friend" and drifts into describing the conversation.
+            // The labels still earn their place in the transcript view.
             let lines = window
                 .iter()
                 .map(|s| format!("[{}] {}", hms(s.start), s.text))
