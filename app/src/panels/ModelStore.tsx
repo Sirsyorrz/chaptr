@@ -3,11 +3,18 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { gb, type CatalogueEntry, type DownloadProgress } from "../types";
 
+interface Props {
+  kind: "speech" | "language";
+  label: string;
+  chosen: string;
+  onChoose: (file: string) => void;
+}
+
 /**
- * A short curated list rather than a model browser. Someone setting this up for
- * the first time should be able to press one button and get on with it.
+ * A quality ladder rather than a list of filenames. Picking a tier that is not
+ * downloaded yet offers the download right there.
  */
-export function ModelStore() {
+export function ModelPicker({ kind, label, chosen, onChoose }: Props) {
   const [items, setItems] = useState<CatalogueEntry[]>([]);
   const [vram, setVram] = useState<number | null>(null);
   const [busy, setBusy] = useState<DownloadProgress | null>(null);
@@ -25,70 +32,96 @@ export function ModelStore() {
     return () => { un.then((f) => f()); };
   }, []);
 
-  const missingRequired = items.filter((i) => i.required && !i.installed);
+  const tiers = items.filter((i) => i.kind === kind).sort((a, b) => a.tier - b.tier);
+  const current = tiers.find((t) => t.file === chosen) ?? tiers[1] ?? tiers[0];
+  if (!current) return null;
+
+  const active = busy?.id === current.id;
+  const tooBig = vram !== null && current.vram > vram;
+  const pct = busy?.total ? (busy.received / busy.total) * 100 : 0;
 
   return (
-    <div className="layout">
-      <div className="layout-h">
-        <b>Models</b>
-        <span className="dim">
-          {vram ? `${vram} GB graphics memory` : "graphics memory unknown"}
-        </span>
-      </div>
+    <label className="field">
+      <b>{label}</b>
+      <select value={current.file} onChange={(e) => onChoose(e.target.value)}>
+        {tiers.map((t) => (
+          <option key={t.id} value={t.file}>
+            {t.tier_name} — {gb(t.bytes)}
+            {t.installed ? "" : " (not downloaded)"}
+          </option>
+        ))}
+      </select>
 
-      {missingRequired.length > 0 && (
-        <p className="note warn">
-          {missingRequired.length} required model
-          {missingRequired.length === 1 ? "" : "s"} still to download —
-          chaptr cannot transcribe or find chaptrs without them.
-        </p>
+      <span className="note">{current.note}</span>
+      <span className="note">
+        {current.speed && <>Speed: {current.speed}. </>}
+        {current.vram > 0 && <>Wants about {current.vram} GB of graphics memory.</>}
+      </span>
+
+      {tooBig && (
+        <span className="note warn">
+          This machine reports {vram} GB, so this may not fit and will fall back
+          to the processor — very slow.
+        </span>
       )}
 
-      {items.map((m) => {
-        const active = busy?.id === m.id;
-        const tooBig = vram !== null && m.vram > vram;
-        return (
-          <div className="mrow2" key={m.id}>
-            <div className="minfo">
-              <b>
-                {m.name}
-                {m.required && <span className="req">needed</span>}
-                {tooBig && <span className="req big">needs {m.vram} GB</span>}
-              </b>
-              <span className="note">{m.note}</span>
-              {active && (
-                <div className="bar">
-                  <div
-                    className="fill"
-                    style={{ width: `${busy.total ? (busy.received / busy.total) * 100 : 0}%` }}
-                  />
-                </div>
-              )}
-            </div>
-            <span className="mono dim">{gb(m.bytes)}</span>
-            {active ? (
-              <button onClick={() => invoke("cancel_download")}>
-                {busy.total ? `${((busy.received / busy.total) * 100).toFixed(0)}%` : "…"} stop
-              </button>
-            ) : m.installed ? (
-              <button
-                onClick={() => invoke("delete_model", { id: m.id }).then(refresh)}
-                title="Remove from disk"
-              >
-                Remove
-              </button>
-            ) : (
-              <button
-                className={m.required ? "accent" : ""}
-                disabled={!!busy}
-                onClick={() => invoke("download_model", { id: m.id })}
-              >
-                Download
-              </button>
-            )}
-          </div>
-        );
-      })}
-    </div>
+      {active && (
+        <div className="dlrow">
+          <div className="bar"><div className="fill" style={{ width: `${pct}%` }} /></div>
+          <span className="mono dim">{pct.toFixed(0)}%</span>
+          <button onClick={() => invoke("cancel_download")}>Stop</button>
+        </div>
+      )}
+
+      {!current.installed && !active && (
+        <div className="dlrow">
+          <button className="accent" disabled={!!busy}
+            onClick={() => invoke("download_model", { id: current.id })}>
+            Download {gb(current.bytes)}
+          </button>
+          {busy && <span className="dim">another download is running</span>}
+        </div>
+      )}
+
+      {current.installed && !active && (
+        <div className="dlrow">
+          <span className="pill ok">downloaded</span>
+          <button onClick={() => invoke("delete_model", { id: current.id }).then(refresh)}>
+            Remove
+          </button>
+        </div>
+      )}
+    </label>
+  );
+}
+
+/** The one model that is not a choice: nothing works without it. */
+export function VadNotice() {
+  const [entry, setEntry] = useState<CatalogueEntry | null>(null);
+  const [busy, setBusy] = useState<DownloadProgress | null>(null);
+
+  const refresh = () =>
+    invoke<CatalogueEntry[]>("list_catalogue").then((all) =>
+      setEntry(all.find((e) => e.kind === "support") ?? null),
+    );
+
+  useEffect(() => {
+    refresh();
+    const un = listen<DownloadProgress>("download", (e) => {
+      setBusy(e.payload.done ? null : e.payload);
+      if (e.payload.done) refresh();
+    });
+    return () => { un.then((f) => f()); };
+  }, []);
+
+  if (!entry || entry.installed) return null;
+  return (
+    <p className="note warn">
+      Voice detection ({gb(entry.bytes)}) is missing. Transcripts will fill with
+      repeated nonsense during silence without it.{" "}
+      <button disabled={!!busy} onClick={() => invoke("download_model", { id: entry.id })}>
+        Download
+      </button>
+    </p>
   );
 }

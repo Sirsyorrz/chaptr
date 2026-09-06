@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../state/store";
-import type { Models, Prefs } from "../types";
-import { ModelStore } from "./ModelStore";
+import type { Prefs } from "../types";
+import { ModelPicker, VadNotice } from "./ModelStore";
 
 const PROVIDERS: { id: Prefs["cloud_provider"]; name: string; hint: string }[] = [
   { id: "anthropic", name: "Anthropic", hint: "claude-sonnet-4-20250514" },
@@ -16,11 +16,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const saveSettings = useStore((s) => s.saveSettings);
   const say = useStore((s) => s.say);
   const [p, setP] = useState<Prefs | null>(null);
-  const [models, setModels] = useState<Models>({ speech: [], language: [] });
 
   useEffect(() => {
     invoke<Prefs>("get_prefs").then(setP);
-    invoke<Models>("list_models").then(setModels);
   }, []);
 
   if (!p || !settings) return null;
@@ -44,24 +42,17 @@ export function Settings({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="sheet-scroll">
-          <ModelStore />
+          <VadNotice />
 
           <div className="layout">
             <div className="layout-h"><b>Transcription</b></div>
 
-            <label className="field">
-              <b>Speech model</b>
-              <span className="note">
-                Bigger is more accurate and slower. Turbo runs at about 130x
-                realtime on this machine, so a hundred hours takes under an hour.
-              </span>
-              <select value={p.whisper_model} onChange={(e) => set({ whisper_model: e.target.value })}>
-                {!models.speech.includes(p.whisper_model) && (
-                  <option value={p.whisper_model}>{p.whisper_model} (missing)</option>
-                )}
-                {models.speech.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </label>
+            <ModelPicker
+              kind="speech"
+              label="Quality"
+              chosen={p.whisper_model}
+              onChoose={(whisper_model) => set({ whisper_model })}
+            />
 
             <label className="field">
               <b>Language</b>
@@ -169,20 +160,12 @@ export function Settings({ onClose }: { onClose: () => void }) {
             </div>
 
             {p.engine === "local" && (
-              <label className="field">
-                <b>Model file</b>
-                <span className="note">
-                  A 14B model needs about 13 GB of VRAM. Smaller ones fit more
-                  easily but name people less reliably, which is most of what
-                  makes a chaptr useful.
-                </span>
-                <select value={p.local_model} onChange={(e) => set({ local_model: e.target.value })}>
-                  {!models.language.includes(p.local_model) && (
-                    <option value={p.local_model}>{p.local_model} (missing)</option>
-                  )}
-                  {models.language.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </label>
+              <ModelPicker
+                kind="language"
+                label="Quality"
+                chosen={p.local_model}
+                onChoose={(local_model) => set({ local_model })}
+              />
             )}
 
             {p.engine === "cloud" && (

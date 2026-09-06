@@ -194,6 +194,9 @@ export interface CatalogueEntry {
   required: boolean;
   installed: boolean;
   on_disk: number;
+  tier: number;
+  tier_name: string;
+  speed: string;
 }
 
 export interface DownloadProgress {

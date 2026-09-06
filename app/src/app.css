@@ -528,3 +528,12 @@ button.warn { border-color: var(--sel); color: var(--sel); }
 }
 .req.big { color: var(--bad); border-color: var(--bad); }
 p.note.warn { color: var(--sel); }
+
+.dlrow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+.dlrow .bar { flex: 1; }
+.note.warn { color: var(--sel); }
