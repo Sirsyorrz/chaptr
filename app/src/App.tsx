@@ -43,7 +43,7 @@ export default function App() {
       } else if (!typing && s.selected !== null) {
         if (e.key === "j" || e.key === "ArrowDown") s.select(Math.min(s.chaptrs.length - 1, s.selected + 1));
         if (e.key === "k" || e.key === "ArrowUp") s.select(Math.max(0, s.selected - 1));
-        if (e.key === " ") { e.preventDefault(); s.star(s.selected); }
+        if (e.key === "f" || e.key === "F") { e.preventDefault(); s.star(s.selected); }
       }
     };
     addEventListener("keydown", onKey);
@@ -247,7 +247,7 @@ export default function App() {
         )}
         {s.busy && <span className="warn">{s.busy}…</span>}
         <span className="spacer" />
-        <span className="dim">/ search · j k move · space star · ctrl+S save</span>
+        <span className="dim">/ search · j k move · f favourite · ctrl+S save</span>
         <span className={s.statusKind}>{s.status}</span>
       </div>
 

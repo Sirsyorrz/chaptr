@@ -297,7 +297,13 @@ label.inline input { padding: 0; width: auto; }
 }
 .brow:hover { background: var(--row-hover); }
 .brow.sel { background: var(--row-sel); }
-.brow.star .btext { color: var(--sel); }
+.brow.star .btext {
+  color: var(--sel);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  align-self: center;
+}
 .starbtn {
   background: none;
   border: none;

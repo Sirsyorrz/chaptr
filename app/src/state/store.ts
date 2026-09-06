@@ -54,7 +54,6 @@ interface State {
   setQuery: (q: string) => void;
   toggleStarredOnly: () => void;
   star: (i: number) => void;
-  edit: (i: number, text: string) => void;
   remove: (i: number) => void;
   save: () => Promise<void>;
   say: (msg: string, kind?: "" | "ok" | "warn") => void;
@@ -356,12 +355,6 @@ export const useStore = create<State>((set, get) => ({
   star: (i) => {
     const chaptrs = get().chaptrs.slice();
     chaptrs[i] = { ...chaptrs[i], starred: !chaptrs[i].starred };
-    set({ chaptrs, dirty: true });
-  },
-
-  edit: (i, text) => {
-    const chaptrs = get().chaptrs.slice();
-    chaptrs[i] = { ...chaptrs[i], text };
     set({ chaptrs, dirty: true });
   },
 

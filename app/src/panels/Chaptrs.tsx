@@ -10,7 +10,6 @@ export function Chaptrs() {
   const starredOnly = useStore((s) => s.starredOnly);
   const select = useStore((s) => s.select);
   const star = useStore((s) => s.star);
-  const edit = useStore((s) => s.edit);
   const remove = useStore((s) => s.remove);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -80,11 +79,7 @@ export function Chaptrs() {
                 <span className="lt mono" title="Position in this file">
                   {hms(b.offset)}
                 </span>
-                <input
-                  className="btext"
-                  value={b.text}
-                  onChange={(e) => edit(i, e.target.value)}
-                />
+                <span className="btext" title={b.text}>{b.text}</span>
                 <button className="x" onClick={() => remove(i)} title="Delete">✕</button>
               </div>
             </div>
