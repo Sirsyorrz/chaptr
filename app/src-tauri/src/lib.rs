@@ -7,6 +7,7 @@ pub mod download;
 pub mod jobs;
 pub mod model;
 pub mod prefs;
+pub mod resolve;
 pub mod project;
 pub mod scan;
 pub mod sidecar;
@@ -159,6 +160,43 @@ pub struct ScanResult {
 #[tauri::command]
 fn list_projects() -> Vec<Project> {
     project::list()
+}
+
+#[derive(Serialize)]
+struct ResolveLink {
+    installed: bool,
+    scripts_dir: String,
+}
+
+#[tauri::command]
+fn resolve_link() -> ResolveLink {
+    ResolveLink {
+        installed: resolve::installed(),
+        scripts_dir: resolve::scripts_dir()
+            .map(|d| d.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+    }
+}
+
+#[tauri::command]
+fn install_resolve_link() -> Result<String, String> {
+    resolve::install()
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|e| e.to_string())
+}
+
+/// Ask Resolve to move its playhead. Cheap and silent: if nothing is watching,
+/// this just leaves a file behind.
+#[tauri::command]
+fn resolve_goto(id: String, recording: String, offset: f64) -> Result<(), String> {
+    let ws = project::workspace(&id);
+    let library: Library = workspace::maybe_json(&ws.library()).ok_or("no library")?;
+    let rec = library
+        .recordings
+        .iter()
+        .find(|r| r.id == recording)
+        .ok_or("unknown recording")?;
+    resolve::goto(&rec.path, offset).map_err(|e| e.to_string())
 }
 
 /// Sources can be folders, individual clips, or both.
@@ -515,6 +553,9 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             list_projects,
+            resolve_link,
+            install_resolve_link,
+            resolve_goto,
             open_project,
             forget_project,
             scan_project,

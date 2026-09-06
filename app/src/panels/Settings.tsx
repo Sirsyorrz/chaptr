@@ -15,6 +15,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const settings = useStore((s) => s.settings);
   const saveSettings = useStore((s) => s.saveSettings);
   const say = useStore((s) => s.say);
+  const s = useStore();
   const [p, setP] = useState<Prefs | null>(null);
 
   useEffect(() => {
@@ -43,6 +44,27 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
         <div className="sheet-scroll">
           <VadNotice />
+
+          <div className="layout">
+            <div className="layout-h"><b>DaVinci Resolve</b></div>
+            <div className="field">
+              <b>Playback</b>
+              <span className="note">
+                Clicking a chaptr moves Resolve's playhead to that moment, if the
+                recording is on the current timeline. Install the script, then start
+                it once per session from Resolve's Workspace &gt; Scripts menu.
+              </span>
+              <div className="row">
+                <button onClick={() => s.installResolve()}>
+                  {s.resolveLink?.installed ? "Reinstall script" : "Install script"}
+                </button>
+                {s.resolveLink?.installed && <span className="ok">installed</span>}
+              </div>
+              {s.resolveLink?.scripts_dir && (
+                <span className="note mono">{s.resolveLink.scripts_dir}</span>
+              )}
+            </div>
+          </div>
 
           <div className="layout">
             <div className="layout-h"><b>Transcription</b></div>

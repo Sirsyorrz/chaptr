@@ -214,6 +214,30 @@ fn main() -> Result<()> {
     let limit = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(usize::MAX);
 
     match sub {
+        "resolve" => {
+            let what = args.get(2).map(String::as_str).unwrap_or("status");
+            match what {
+                "install" => println!("installed {}", chaptr::resolve::install()?.display()),
+                "goto" => {
+                    let file = args.get(3).cloned().unwrap_or_default();
+                    let at: f64 = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                    chaptr::resolve::goto(&file, at)?;
+                    println!(
+                        "wrote {}: {}",
+                        chaptr::resolve::request_file().display(),
+                        std::fs::read_to_string(chaptr::resolve::request_file())?
+                    );
+                }
+                _ => println!(
+                    "script installed: {}\nscripts dir: {}\nrequest file: {}",
+                    chaptr::resolve::installed(),
+                    chaptr::resolve::scripts_dir().unwrap_or_default().display(),
+                    chaptr::resolve::request_file().display()
+                ),
+            }
+            Ok(())
+        }
+
         "forget" if !folder.is_empty() => {
             let name = project::get(&folder).map(|p| p.name).unwrap_or_default();
             project::forget(&folder, true)?;

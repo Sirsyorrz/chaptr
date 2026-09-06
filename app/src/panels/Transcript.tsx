@@ -11,6 +11,7 @@ export function Transcript() {
   const hitRef = useRef<HTMLDivElement>(null);
 
   const viewing = useStore((s) => s.viewing);
+  const gotoResolve = useStore((s) => s.gotoResolve);
   const at = selected !== null ? chaptrs[selected]?.offset ?? null : null;
   const whole = viewing !== null && at === null;
 
@@ -52,6 +53,8 @@ export function Transcript() {
               key={i}
               ref={closest ? hitRef : undefined}
               className={"urow" + (closest ? " active" : "") + (s.who === "host" ? " host" : "")}
+              title="Jump Resolve here"
+              onClick={() => transcript && gotoResolve(transcript.recording_id, s.start)}
             >
               <span className="uts mono">{hms(s.start)}</span>
               <span className="uwho">{s.who === "all" ? "" : s.who}</span>

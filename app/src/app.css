@@ -212,6 +212,8 @@ label.inline input { padding: 0; width: auto; }
 }
 .x:hover { color: var(--bad); border-color: var(--bad); }
 
+.urow { cursor: pointer; }
+.urow:hover { background: var(--row-hover); }
 .urow {
   display: grid;
   grid-template-columns: 58px 78px 1fr;

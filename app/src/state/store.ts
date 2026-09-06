@@ -46,6 +46,10 @@ interface State {
   setRole: (signature: string, index: number, role: Role) => Promise<void>;
   saveSettings: (patch: Partial<Settings>) => Promise<void>;
 
+  resolveLink: { installed: boolean; scripts_dir: string } | null;
+  checkResolve: () => Promise<void>;
+  installResolve: () => Promise<void>;
+  gotoResolve: (recordingId: string, offset: number) => void;
   select: (i: number | null) => Promise<void>;
   setQuery: (q: string) => void;
   toggleStarredOnly: () => void;
@@ -59,6 +63,7 @@ interface State {
 export const useStore = create<State>((set, get) => ({
   project: null,
   projects: [],
+  resolveLink: null,
   library: null,
   settings: null,
   layouts: [],
@@ -148,6 +153,7 @@ export const useStore = create<State>((set, get) => ({
 
   boot: async () => {
     set({ missing: await invoke<string[]>("check_sidecars") });
+    get().checkResolve();
     const projects = await invoke<Project[]>("list_projects");
     set({ projects });
     const last = localStorage.getItem(PROJECT_KEY);
@@ -311,10 +317,37 @@ export const useStore = create<State>((set, get) => ({
     set({ selected: i });
     const { chaptrs, project, transcript } = get();
     if (i === null) return;
-    const id = chaptrs[i]?.recording_id;
+    const c = chaptrs[i];
+    const id = c?.recording_id;
+    if (id) get().gotoResolve(id, c.offset);
     if (!id || transcript?.recording_id === id) return;
     const t = await invoke<Transcript | null>("load_transcript", { id: project!.id, recordingId: id });
     set({ transcript: t });
+  },
+
+  checkResolve: async () => {
+    try {
+      set({ resolveLink: await invoke("resolve_link") });
+    } catch {
+      set({ resolveLink: null });
+    }
+  },
+
+  installResolve: async () => {
+    try {
+      const at = await invoke<string>("install_resolve_link");
+      get().say(`installed to ${at} — start it from Workspace > Scripts`, "ok");
+      get().checkResolve();
+    } catch (e) {
+      get().say(String(e), "warn");
+    }
+  },
+
+  /// Fire and forget. Resolve may not be running, and that is not an error.
+  gotoResolve: (recordingId, offset) => {
+    const id = get().project?.id;
+    if (!id) return;
+    invoke("resolve_goto", { id, recording: recordingId, offset }).catch(() => {});
   },
 
   setQuery: (query) => set({ query }),
