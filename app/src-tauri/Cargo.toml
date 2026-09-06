@@ -19,6 +19,10 @@ path = "src/bin/cli.rs"
 tauri-build = { version = "2", features = [] }
 
 [features]
+# On by default so a plain `cargo build` produces a working app. Without it
+# Tauri serves devUrl and the window shows "Connection refused".
+# Use --no-default-features only when running against a dev server.
+default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
 [dependencies]
