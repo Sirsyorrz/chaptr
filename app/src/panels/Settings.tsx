@@ -23,7 +23,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
   }, []);
 
   if (!p || !settings) return null;
-  const set = (patch: Partial<Prefs>) => setP({ ...p, ...patch });
+  const set = (patch: Partial<Prefs>) => {
+    setP({ ...p, ...patch });
+    // Choosing a different model changes whether anything is missing.
+    if ("local_model" in patch || "whisper_model" in patch || "engine" in patch) {
+      queueMicrotask(() => s.recheck());
+    }
+  };
 
   const done = async () => {
     await invoke("save_prefs", { prefsIn: p });

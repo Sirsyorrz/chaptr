@@ -20,6 +20,7 @@ interface State {
   status: string;
   statusKind: "" | "ok" | "warn";
   missing: string[];
+  recheck: () => Promise<void>;
 
   job: JobProgress | null;
   runId: number;
@@ -150,8 +151,15 @@ export const useStore = create<State>((set, get) => ({
     );
   },
 
-  boot: async () => {
+  /// Sidecars and models can appear or vanish while the app is open, so this
+  /// has to be re-run after a download or a model change rather than trusted
+  /// from startup.
+  recheck: async () => {
     set({ missing: await invoke<string[]>("check_sidecars") });
+  },
+
+  boot: async () => {
+    await get().recheck();
     get().checkResolve();
     const projects = await invoke<Project[]>("list_projects");
     set({ projects });

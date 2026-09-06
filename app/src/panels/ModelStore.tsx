@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { gb, type CatalogueEntry, type DownloadProgress } from "../types";
+import { useStore } from "../state/store";
 
 interface Props {
   kind: "speech" | "language";
@@ -27,7 +28,10 @@ export function ModelPicker({ kind, label, chosen, onChoose }: Props) {
     const un = listen<DownloadProgress>("download", (e) => {
       const p = e.payload;
       setBusy(p.done ? null : p);
-      if (p.done) refresh();
+      if (p.done) {
+        refresh();
+        useStore.getState().recheck();
+      }
     });
     return () => { un.then((f) => f()); };
   }, []);
