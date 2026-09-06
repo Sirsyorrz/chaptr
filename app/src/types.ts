@@ -114,7 +114,32 @@ export interface Layout {
 export interface Settings {
   subject: string;
   notes: string;
+  window_minutes: number;
+  overlap_minutes: number;
+  min_per_window: number;
+  max_per_window: number;
+  temperature: number;
   roles: Record<string, Role[]>;
+}
+
+export interface Prefs {
+  whisper_model: string;
+  language: string;
+  vad_threshold: number;
+  engine: "local" | "cloud";
+  local_model: string;
+  cloud_provider: "anthropic" | "openai" | "google" | "compatible";
+  cloud_model: string;
+  cloud_base_url: string;
+  anthropic_key: string;
+  openai_key: string;
+  google_key: string;
+  parallel: number;
+}
+
+export interface Models {
+  speech: string[];
+  language: string[];
 }
 
 /** Hours are what the user thinks in across a 100 hour shoot. */

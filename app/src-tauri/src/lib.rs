@@ -4,6 +4,7 @@ pub mod bundle;
 pub mod chaptrs;
 pub mod jobs;
 pub mod model;
+pub mod prefs;
 pub mod project;
 pub mod scan;
 pub mod sidecar;
@@ -34,10 +35,36 @@ pub struct App {
 
 fn models() -> AsrConfig {
     let dir = model_dir();
-    AsrConfig::new(
-        dir.join("ggml-large-v3-turbo-q5_0.bin"),
-        dir.join("ggml-silero-v5.1.2.bin"),
-    )
+    let p = prefs::load();
+    let mut cfg = AsrConfig::new(dir.join(&p.whisper_model), dir.join("ggml-silero-v5.1.2.bin"));
+    cfg.language = p.language.clone();
+    cfg.vad_threshold = p.vad_threshold;
+    cfg
+}
+
+/// Transcription config for a project, adding its vocabulary hint.
+fn asr_for(id: &str) -> AsrConfig {
+    let mut cfg = models();
+    let ws = project::workspace(id);
+    if let Some(s) = workspace::maybe_json::<Settings>(&ws.settings()) {
+        cfg.vocabulary = s.notes.clone();
+    }
+    cfg
+}
+
+#[tauri::command]
+fn get_prefs() -> prefs::Prefs {
+    prefs::load()
+}
+
+#[tauri::command]
+fn save_prefs(prefs_in: prefs::Prefs) -> Result<(), String> {
+    prefs::save(&prefs_in).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_models() -> prefs::Models {
+    prefs::available(&model_dir())
 }
 
 fn model_dir() -> PathBuf {
@@ -245,8 +272,9 @@ fn start_job(
     *app.last_job.lock().unwrap() = None;
 
     let cancel = jobs::Cancel(app.cancel.0.clone());
-    let asr = models();
-    let llm = model_dir().join("Qwen3-14B-Q4_K_M.gguf");
+    let asr = asr_for(&id);
+    let p = prefs::load();
+    let llm = model_dir().join(&p.local_model);
 
     std::thread::spawn(move || {
         let result = match stage.as_str() {
@@ -396,8 +424,12 @@ fn check_sidecars() -> Vec<String> {
             missing.push(label.to_string());
         }
     }
-    if !model_dir().join("Qwen3-14B-Q4_K_M.gguf").is_file() {
+    let p = prefs::load();
+    if p.engine == prefs::Engine::Local && !model_dir().join(&p.local_model).is_file() {
         missing.push("language model".into());
+    }
+    if p.engine == prefs::Engine::Cloud && p.key().is_empty() {
+        missing.push("API key".into());
     }
     missing
 }
@@ -428,6 +460,9 @@ pub fn run() {
             save_project,
             close_project,
             open_project_file,
+            get_prefs,
+            save_prefs,
+            list_models,
             check_sidecars
         ])
         .run(tauri::generate_context!())

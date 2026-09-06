@@ -499,3 +499,9 @@ button.warn { border-color: var(--sel); color: var(--sel); }
   padding-top: var(--sp-2);
   border-top: 1px solid var(--line);
 }
+
+.field .row { display: flex; gap: var(--sp-2); }
+.field input[type="range"] { width: 100%; }
+.field input[type="number"] { width: 80px; }
+.tabs-inline { margin-bottom: var(--sp-3); }
+.tabs-inline button.on { border-color: var(--accent); color: var(--accent); }

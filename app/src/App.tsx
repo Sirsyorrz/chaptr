@@ -7,11 +7,13 @@ import { Transcribes } from "./panels/Transcribes";
 import { Transcript } from "./panels/Transcript";
 import { Tracks } from "./panels/Tracks";
 import { FindChaptrs } from "./panels/FindChaptrs";
+import { Settings } from "./panels/Settings";
 import { hoursMins, type JobProgress } from "./types";
 
 export default function App() {
   const [showTracks, setShowTracks] = useState(false);
   const [showFind, setShowFind] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const s = useStore();
 
   useEffect(() => {
@@ -120,6 +122,7 @@ export default function App() {
           starred
         </label>
         <span className="spacer" />
+        <button onClick={() => setShowSettings(true)}>Settings</button>
         <button
           className={s.project?.unsaved || s.dirty ? "accent" : ""}
           onClick={save}
@@ -215,6 +218,7 @@ export default function App() {
 
       {showTracks && <Tracks onClose={() => setShowTracks(false)} />}
       {showFind && <FindChaptrs onClose={() => setShowFind(false)} />}
+      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

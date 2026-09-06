@@ -8,6 +8,8 @@ use serde_json::{json, Value};
 use crate::model::{Chaptr, Recording, Segment};
 use crate::sidecar::Sidecars;
 
+use crate::prefs::{Engine, Prefs, Provider};
+
 #[derive(Debug, Clone)]
 pub struct ChaptrConfig {
     pub model: PathBuf,
@@ -25,6 +27,44 @@ pub struct ChaptrConfig {
     /// A floor of 2 is what stops whole windows coming back empty: given the
     /// option of returning nothing, the model takes it about half the time.
     pub min_per_window: usize,
+    /// Empty for a local model; otherwise a cloud endpoint.
+    pub remote: Option<Remote>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Remote {
+    pub provider: Provider,
+    pub model: String,
+    pub key: String,
+    pub base_url: String,
+}
+
+impl Remote {
+    pub fn from(p: &Prefs) -> Option<Self> {
+        if p.engine != Engine::Cloud || p.key().is_empty() {
+            return None;
+        }
+        Some(Self {
+            provider: p.cloud_provider,
+            model: p.cloud_model.clone(),
+            key: p.key().to_string(),
+            base_url: p.cloud_base_url.clone(),
+        })
+    }
+
+    fn endpoint(&self) -> String {
+        if !self.base_url.trim().is_empty() {
+            return format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
+        }
+        match self.provider {
+            Provider::Anthropic => "https://api.anthropic.com/v1/messages".into(),
+            Provider::Openai => "https://api.openai.com/v1/chat/completions".into(),
+            Provider::Google => {
+                "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions".into()
+            }
+            Provider::Compatible => "http://127.0.0.1:8899/v1/chat/completions".into(),
+        }
+    }
 }
 
 impl ChaptrConfig {
@@ -40,6 +80,7 @@ impl ChaptrConfig {
             subject: "a video game session".into(),
             notes: String::new(),
             min_per_window: 2,
+            remote: None,
         }
     }
     fn url(&self) -> String {
@@ -56,6 +97,10 @@ pub struct Llm {
 
 impl Llm {
     pub fn start(sc: &Sidecars, cfg: ChaptrConfig) -> Result<Self> {
+        // A cloud endpoint needs no local server and no model file.
+        if cfg.remote.is_some() {
+            return Ok(Self { child: None, cfg });
+        }
         sc.require(&sc.llama)?;
         if !cfg.model.is_file() {
             bail!("llm model missing: {}", cfg.model.display());
@@ -95,6 +140,13 @@ impl Llm {
     }
 
     fn ask(&self, system: &str, user: &str) -> Result<Value> {
+        match &self.cfg.remote {
+            Some(remote) => self.ask_remote(remote, system, user),
+            None => self.ask_local(system, user),
+        }
+    }
+
+    fn ask_local(&self, system: &str, user: &str) -> Result<Value> {
         let body = json!({
             "messages": [
                 {"role": "system", "content": system},
@@ -108,7 +160,7 @@ impl Llm {
             "response_format": {
                 "type": "json_schema",
                 "json_schema": {
-                    "name": "beats",
+                    "name": "chaptrs",
                     "schema": schema(self.cfg.min_per_window, self.cfg.max_per_window)
                 }
             }
@@ -118,12 +170,91 @@ impl Llm {
             .timeout(Duration::from_secs(300))
             .send_json(body)?
             .into_json()?;
-
         let content = resp["choices"][0]["message"]["content"]
             .as_str()
             .context("llm response had no content")?;
-        serde_json::from_str(content).context("llm returned malformed json")
+        parse_lenient(content)
     }
+
+    fn ask_remote(&self, remote: &Remote, system: &str, user: &str) -> Result<Value> {
+        let schema = schema(self.cfg.min_per_window, self.cfg.max_per_window);
+        let endpoint = remote.endpoint();
+
+        let request = if remote.provider == Provider::Anthropic
+            && remote.base_url.trim().is_empty()
+        {
+            // Anthropic has its own shape; a tool with the schema is how it is
+            // made to return structured output.
+            ureq::post(&endpoint)
+                .set("x-api-key", &remote.key)
+                .set("anthropic-version", "2023-06-01")
+                .set("content-type", "application/json")
+                .timeout(Duration::from_secs(300))
+                .send_json(json!({
+                    "model": remote.model,
+                    "max_tokens": 1500,
+                    "temperature": self.cfg.temperature,
+                    "system": system,
+                    "tool_choice": {"type": "tool", "name": "chaptrs"},
+                    "tools": [{
+                        "name": "chaptrs",
+                        "description": "Record what happened in this stretch of recording.",
+                        "input_schema": schema
+                    }],
+                    "messages": [{"role": "user", "content": user}]
+                }))
+        } else {
+            ureq::post(&endpoint)
+                .set("authorization", &format!("Bearer {}", remote.key))
+                .set("content-type", "application/json")
+                .timeout(Duration::from_secs(300))
+                .send_json(json!({
+                    "model": remote.model,
+                    "temperature": self.cfg.temperature,
+                    "max_tokens": 1500,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": format!(
+                            "{user}\n\nReply with JSON only, matching: {}",
+                            serde_json::to_string(&schema).unwrap_or_default()
+                        )}
+                    ],
+                    "response_format": {"type": "json_object"}
+                }))
+        };
+
+        let resp: Value = match request {
+            Ok(r) => r.into_json()?,
+            Err(ureq::Error::Status(code, r)) => {
+                let detail = r.into_string().unwrap_or_default();
+                bail!("{} returned {code}: {}", endpoint, detail.chars().take(300).collect::<String>());
+            }
+            Err(e) => bail!("{endpoint}: {e}"),
+        };
+
+        // Anthropic returns the tool input; everyone else returns message text.
+        if let Some(input) = resp["content"]
+            .as_array()
+            .and_then(|c| c.iter().find(|b| b["type"] == "tool_use"))
+            .map(|b| b["input"].clone())
+        {
+            return Ok(input);
+        }
+        let content = resp["choices"][0]["message"]["content"]
+            .as_str()
+            .with_context(|| format!("unexpected response: {}", resp.to_string().chars().take(200).collect::<String>()))?;
+        parse_lenient(content)
+    }
+}
+
+/// Cloud models wrap JSON in prose or code fences even when told not to.
+fn parse_lenient(text: &str) -> Result<Value> {
+    if let Ok(v) = serde_json::from_str::<Value>(text.trim()) {
+        return Ok(v);
+    }
+    let start = text.find('{').context("no json in response")?;
+    let end = text.rfind('}').context("no json in response")?;
+    serde_json::from_str(&text[start..=end]).context("llm returned malformed json")
 }
 
 impl Drop for Llm {

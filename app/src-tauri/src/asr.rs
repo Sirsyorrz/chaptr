@@ -14,6 +14,10 @@ pub struct AsrConfig {
     pub vad_model: PathBuf,
     pub language: String,
     pub threads: usize,
+    pub vad_threshold: f64,
+    /// Seeds whisper with expected spellings. Names it has never seen come back
+    /// mangled otherwise.
+    pub vocabulary: String,
 }
 
 impl AsrConfig {
@@ -23,6 +27,8 @@ impl AsrConfig {
             vad_model: vad_model.into(),
             language: "en".into(),
             threads: std::thread::available_parallelism().map_or(8, |n| n.get().min(16)),
+            vad_threshold: 0.5,
+            vocabulary: String::new(),
         }
     }
 }
@@ -57,6 +63,7 @@ pub fn transcribe(
         .args(["-t", &cfg.threads.to_string()])
         .arg("--vad")
         .arg("-vm").arg(&cfg.vad_model)
+        .args(["-vt", &cfg.vad_threshold.to_string()])
         // Stops the model narrating music stings and gunfire as dialogue.
         .arg("-sns")
         // Results come from the JSON file, so the running transcript on stdout
@@ -68,6 +75,10 @@ pub fn transcribe(
         .arg("-of").arg(&stem)
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
+
+    if !cfg.vocabulary.trim().is_empty() {
+        cmd.arg("--prompt").arg(cfg.vocabulary.trim());
+    }
 
     let mut child = cmd.spawn().context("spawning whisper-cli")?;
 

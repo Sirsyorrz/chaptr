@@ -178,8 +178,18 @@ pub fn chaptrs_all(
         cfg.subject = settings.subject.clone();
     }
     cfg.notes = settings.notes.clone();
+    cfg.window_secs = settings.window_minutes.max(0.5) * 60.0;
+    cfg.overlap_secs = settings.overlap_minutes.clamp(0.0, settings.window_minutes / 2.0) * 60.0;
+    cfg.min_per_window = settings.min_per_window;
+    cfg.max_per_window = settings.max_per_window.max(settings.min_per_window);
+    cfg.temperature = settings.temperature;
+    cfg.remote = crate::chaptrs::Remote::from(&crate::prefs::load());
 
-    p.message = "loading the language model".into();
+    p.message = if cfg.remote.is_some() {
+        "contacting the model".into()
+    } else {
+        "loading the language model".into()
+    };
     emit(app, &p);
     let llm = Llm::start(&Sidecars::discover(), cfg)?;
     p.message.clear();

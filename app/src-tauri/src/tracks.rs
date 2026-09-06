@@ -87,16 +87,49 @@ pub struct Layout {
     pub tracks: Vec<TrackProbe>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+fn window_default() -> f64 { 10.0 }
+fn overlap_default() -> f64 { 1.0 }
+fn min_default() -> usize { 2 }
+fn max_default() -> usize { 6 }
+fn temp_default() -> f64 { 0.2 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     #[serde(default)]
     pub subject: String,
     #[serde(default)]
     pub notes: String,
+    /// Minutes of transcript shown to the model at once. Shorter windows give
+    /// denser chaptrs on short clips; longer ones give better context.
+    #[serde(default = "window_default")]
+    pub window_minutes: f64,
+    #[serde(default = "overlap_default")]
+    pub overlap_minutes: f64,
+    #[serde(default = "min_default")]
+    pub min_per_window: usize,
+    #[serde(default = "max_default")]
+    pub max_per_window: usize,
+    #[serde(default = "temp_default")]
+    pub temperature: f64,
     /// Roles per layout signature, so one folder can hold recordings made with
     /// different OBS setups.
     #[serde(default)]
     pub roles: BTreeMap<String, Vec<Role>>,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            subject: String::new(),
+            notes: String::new(),
+            window_minutes: window_default(),
+            overlap_minutes: overlap_default(),
+            min_per_window: min_default(),
+            max_per_window: max_default(),
+            temperature: temp_default(),
+            roles: BTreeMap::new(),
+        }
+    }
 }
 
 impl Settings {
