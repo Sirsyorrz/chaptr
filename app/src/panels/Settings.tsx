@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../state/store";
 import type { Models, Prefs } from "../types";
+import { ModelStore } from "./ModelStore";
 
 const PROVIDERS: { id: Prefs["cloud_provider"]; name: string; hint: string }[] = [
   { id: "anthropic", name: "Anthropic", hint: "claude-sonnet-4-20250514" },
@@ -43,6 +44,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="sheet-scroll">
+          <ModelStore />
+
           <div className="layout">
             <div className="layout-h"><b>Transcription</b></div>
 

@@ -262,6 +262,59 @@ fn main() -> Result<()> {
             );
             Ok(())
         }
+        "models" => {
+            let dir = std::env::var("CHAPTR_MODELS").map(PathBuf::from).unwrap_or_else(|_| {
+                std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("models"))).unwrap_or_default()
+            });
+            if let Some(gb) = chaptr::catalogue::vram_gb() {
+                println!("{gb} GB VRAM detected\n");
+            }
+            for e in chaptr::catalogue::ENTRIES {
+                let path = dir.join(e.file);
+                let have = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                println!(
+                    "{:14} {:<32} {:>7.1} GB  {}",
+                    e.id,
+                    e.name,
+                    e.bytes as f64 / 1e9,
+                    if have > 0 { "installed" } else { "not installed" }
+                );
+            }
+            Ok(())
+        }
+        "get" if !folder.is_empty() => {
+            let e = chaptr::catalogue::find(&folder).ok_or_else(|| anyhow::anyhow!("unknown model"))?;
+            let dir = std::env::var("CHAPTR_MODELS").map(PathBuf::from).unwrap_or_else(|_| {
+                std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("models"))).unwrap_or_default()
+            });
+            let dest = dir.join(e.file);
+            let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let start = std::time::Instant::now();
+            let n = chaptr::download::fetch(e.url, &dest, &cancel, |got, total| {
+                if total > 0 {
+                    print!("\r  {:.0}%  {:.0} MB/s   ", 100.0 * got as f64 / total as f64,
+                        got as f64 / 1e6 / start.elapsed().as_secs_f64().max(0.001));
+                    use std::io::Write;
+                    let _ = std::io::stdout().flush();
+                }
+            })?;
+            println!("\r  {} -> {} ({:.1} MB in {:.0}s)", e.id, dest.display(), n as f64 / 1e6, start.elapsed().as_secs_f64());
+            Ok(())
+        }
+        "urlcheck" => {
+            for e in chaptr::catalogue::ENTRIES {
+                match ureq::head(e.url).timeout(std::time::Duration::from_secs(30)).call() {
+                    Ok(r) => println!(
+                        "{:14} {} {}",
+                        e.id,
+                        r.status(),
+                        r.header("content-length").unwrap_or("?")
+                    ),
+                    Err(err) => println!("{:14} FAILED {err}", e.id),
+                }
+            }
+            Ok(())
+        }
         "doctor" => {
             let missing = Sidecars::discover().missing();
             let cfg = models();

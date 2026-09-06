@@ -505,3 +505,26 @@ button.warn { border-color: var(--sel); color: var(--sel); }
 .field input[type="number"] { width: 80px; }
 .tabs-inline { margin-bottom: var(--sp-3); }
 .tabs-inline button.on { border-color: var(--accent); color: var(--accent); }
+
+.mrow2 {
+  display: grid;
+  grid-template-columns: 1fr 70px 110px;
+  gap: var(--sp-2);
+  align-items: start;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.minfo b { display: block; color: var(--fg); }
+.minfo .note { margin: 2px 0 0; }
+.minfo .bar { margin-top: var(--sp-1); }
+.req {
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  color: var(--sel);
+  border: 1px solid var(--sel);
+  border-radius: 9px;
+  padding: 0 6px;
+  margin-left: var(--sp-2);
+}
+.req.big { color: var(--bad); border-color: var(--bad); }
+p.note.warn { color: var(--sel); }

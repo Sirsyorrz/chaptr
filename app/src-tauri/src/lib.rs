@@ -1,7 +1,9 @@
 pub mod asr;
 pub mod audio;
 pub mod bundle;
+pub mod catalogue;
 pub mod chaptrs;
+pub mod download;
 pub mod jobs;
 pub mod model;
 pub mod prefs;
@@ -30,6 +32,7 @@ pub struct App {
     pub cancel: jobs::Cancel,
     pub running: Mutex<bool>,
     pub last_job: Mutex<Option<jobs::Progress>>,
+    pub downloads: download::Downloads,
     pub run: Mutex<u64>,
 }
 
@@ -60,6 +63,77 @@ fn get_prefs() -> prefs::Prefs {
 #[tauri::command]
 fn save_prefs(prefs_in: prefs::Prefs) -> Result<(), String> {
     prefs::save(&prefs_in).map_err(|e| e.to_string())
+}
+
+#[derive(Serialize)]
+pub struct CatalogueEntry {
+    #[serde(flatten)]
+    entry: catalogue::Entry,
+    installed: bool,
+    on_disk: u64,
+}
+
+#[tauri::command]
+fn list_catalogue() -> Vec<CatalogueEntry> {
+    let dir = model_dir();
+    catalogue::ENTRIES
+        .iter()
+        .map(|e| {
+            let path = dir.join(e.file);
+            let on_disk = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+            CatalogueEntry { entry: e.clone(), installed: on_disk > 0, on_disk }
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn gpu_vram() -> Option<u32> {
+    catalogue::vram_gb()
+}
+
+#[tauri::command]
+fn download_model(app_handle: tauri::AppHandle, app: State<App>, id: String) -> Result<(), String> {
+    let entry = catalogue::find(&id).ok_or("unknown model")?;
+    let dest = model_dir().join(entry.file);
+    let cancel = app.downloads.cancel.clone();
+    cancel.store(false, std::sync::atomic::Ordering::SeqCst);
+    let url = entry.url.to_string();
+
+    let file = entry.file.to_string();
+    std::thread::spawn(move || {
+        let report = |received, total, done, error| {
+            let _ = app_handle.emit(
+                "download",
+                download::DownloadProgress {
+                    id: id.clone(),
+                    file: file.clone(),
+                    received,
+                    total,
+                    done,
+                    error,
+                },
+            );
+        };
+        let result = download::fetch(&url, &dest, &cancel, |received, total| {
+            report(received, total, false, None)
+        });
+        match result {
+            Ok(n) => report(n, n, true, None),
+            Err(e) => report(0, 0, true, Some(e.to_string())),
+        }
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn cancel_download(app: State<App>) {
+    app.downloads.cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+#[tauri::command]
+fn delete_model(id: String) -> Result<(), String> {
+    let entry = catalogue::find(&id).ok_or("unknown model")?;
+    std::fs::remove_file(model_dir().join(entry.file)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -463,6 +537,11 @@ pub fn run() {
             get_prefs,
             save_prefs,
             list_models,
+            list_catalogue,
+            gpu_vram,
+            download_model,
+            cancel_download,
+            delete_model,
             check_sidecars
         ])
         .run(tauri::generate_context!())

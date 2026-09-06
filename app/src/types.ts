@@ -181,3 +181,29 @@ export interface FileStatus {
   chaptrs: number;
   transcribed: boolean;
 }
+
+export interface CatalogueEntry {
+  id: string;
+  file: string;
+  kind: "speech" | "language" | "support";
+  name: string;
+  note: string;
+  bytes: number;
+  vram: number;
+  url: string;
+  required: boolean;
+  installed: boolean;
+  on_disk: number;
+}
+
+export interface DownloadProgress {
+  id: string;
+  file: string;
+  received: number;
+  total: number;
+  done: boolean;
+  error: string | null;
+}
+
+export const gb = (n: number): string =>
+  n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${Math.round(n / 1e6)} MB`;
