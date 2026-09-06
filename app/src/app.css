@@ -465,6 +465,46 @@ button.warn { border-color: var(--sel); color: var(--sel); }
 .empty-state h2 { color: var(--fg-dim); font-weight: 500; margin: 0; }
 .empty-state .row { display: flex; gap: var(--sp-2); }
 
+.recent {
+  width: min(560px, 80%);
+  margin-top: var(--sp-3);
+  border-top: 1px solid var(--line);
+  padding-top: var(--sp-3);
+}
+.recent h3 {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--fg-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.recent-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.recent-row:hover { background: var(--row-hover); border-color: var(--line); }
+.recent-name { color: var(--fg); font-size: var(--fs); }
+.recent-meta { color: var(--fg-faint); font-size: var(--fs-sm); white-space: nowrap; }
+.recent-path {
+  grid-column: 1 / -1;
+  color: var(--fg-faint);
+  font-size: var(--fs-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
 .menuwrap { position: relative; display: inline-flex; }
 .menu {
   position: absolute;

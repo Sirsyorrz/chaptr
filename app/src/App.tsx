@@ -171,8 +171,25 @@ export default function App() {
           </p>
           <div className="row">
             <button onClick={importClips}>Import recordings</button>
-            <button onClick={openProjectFile}>Open a project</button>
+            <button onClick={openProjectFile}>Open a project file</button>
           </div>
+
+          {s.projects.length > 0 && (
+            <div className="recent">
+              <h3>Recent</h3>
+              {s.projects.map((p) => (
+                <button key={p.id} className="recent-row" onClick={() => s.openProject(p.id)}>
+                  <span className="recent-name">{p.name}</span>
+                  <span className="recent-meta">
+                    {p.recordings} {p.recordings === 1 ? "recording" : "recordings"}
+                    {p.duration > 0 && ` · ${hoursMins(p.duration)}`}
+                    {p.unsaved && " · unsaved"}
+                  </span>
+                  <span className="recent-path">{p.sources[0] ?? ""}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
