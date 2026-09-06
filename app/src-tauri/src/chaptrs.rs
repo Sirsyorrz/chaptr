@@ -27,6 +27,10 @@ pub struct ChaptrConfig {
     /// A floor of 2 is what stops whole windows coming back empty: given the
     /// option of returning nothing, the model takes it about half the time.
     pub min_per_window: usize,
+    /// Recurring names gathered from the whole project. A ten-minute window
+    /// often refers to someone introduced much earlier, which the model would
+    /// otherwise never see.
+    pub roster: String,
     /// Empty for a local model; otherwise a cloud endpoint.
     pub remote: Option<Remote>,
 }
@@ -80,6 +84,7 @@ impl ChaptrConfig {
             subject: "a video game session".into(),
             notes: String::new(),
             min_per_window: 2,
+            roster: String::new(),
             remote: None,
         }
     }
@@ -307,8 +312,12 @@ fn parse_hms(t: &str) -> Option<f64> {
 
 fn prompt(cfg: &ChaptrConfig, lines: &str, t0: &str, t1: &str) -> String {
     let mut context = format!("This recording is {}.", cfg.subject);
-    if !cfg.notes.trim().is_empty() {
-        context.push_str(&format!(" Names and terms you may hear: {}.", cfg.notes.trim()));
+    if !cfg.roster.trim().is_empty() {
+        context.push_str(&format!(
+            "\n\nPeople, heroes and items that come up in this recording:\n{}.\nWhen a line \
+             refers to one of them, name them. A name is always better than \"a player\".",
+            cfg.roster.trim()
+        ));
     }
 
     format!(
@@ -337,6 +346,72 @@ stretch is almost silent. t copied exactly from a timestamp above.",
         min = cfg.min_per_window + 1,
         max = cfg.max_per_window,
     )
+}
+
+/// Words whisper capitalises that are not names: sentence starts, shouted
+/// interjections, and contractions it writes without the apostrophe.
+const NOT_NAMES: &[&str] = &[
+    "the", "they", "there", "this", "that", "then", "these", "those", "and", "but", "you",
+    "your", "yeah", "yes", "not", "now", "what", "when", "where", "why", "who", "how",
+    "his", "her", "him", "she", "was", "were", "with", "will", "well", "just", "like",
+    "let", "for", "from", "got", "get", "gonna", "have", "has", "had", "one", "two",
+    "three", "all", "any", "are", "can", "did", "does", "done", "dont", "good", "great",
+    "here", "hey", "its", "lets", "look", "man", "more", "much", "need", "next", "nice",
+    "okay", "our", "out", "over", "put", "right", "see", "should", "some", "still",
+    "sure", "take", "than", "them", "think", "too", "try", "wait", "want", "way", "wow",
+    "actually", "again", "alright", "because", "before", "bro", "come", "coming", "even",
+    "every", "fuck", "fucking", "give", "going", "guys", "half", "hold", "keep", "kill",
+    "know", "last", "little", "make", "maybe", "mid", "might", "never", "only", "other",
+    "play", "pretty", "really", "same", "shit", "stop", "thanks", "thing", "time",
+    "under", "used", "very", "wanna", "watch", "yep", "ive", "ill", "youre", "theyre",
+    "theres", "thats", "were", "weve", "wed", "hes", "shes", "cant", "didnt", "doesnt",
+    "wasnt", "isnt", "couldnt", "wouldnt", "gotta", "nah", "yay", "boundless",
+];
+
+/// Names that recur across the whole recording, so a ten-minute window can
+/// refer to someone by name even when this stretch never introduces them.
+pub fn roster(segments: &[Segment], extra: &str, limit: usize) -> String {
+    use std::collections::HashMap;
+    let mut counts: HashMap<String, usize> = HashMap::new();
+
+    for seg in segments {
+        for (i, word) in seg.text.split_whitespace().enumerate() {
+            // Skip the first word: whisper capitalises every sentence start.
+            if i == 0 {
+                continue;
+            }
+            let clean: String = word.chars().filter(|c| c.is_alphanumeric()).collect();
+            if clean.len() < 3 || clean.len() > 20 {
+                continue;
+            }
+            let mut chars = clean.chars();
+            let looks_like_a_name = chars.next().is_some_and(|c| c.is_uppercase())
+                && chars.all(|c| c.is_lowercase());
+            if !looks_like_a_name || NOT_NAMES.contains(&clean.to_lowercase().as_str()) {
+                continue;
+            }
+            *counts.entry(clean).or_default() += 1;
+        }
+    }
+
+    // Three mentions filters one-off mishearings without losing real names.
+    let mut names: Vec<(String, usize)> = counts.into_iter().filter(|(_, n)| *n >= 3).collect();
+    names.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+
+    let mut out: Vec<String> = extra
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    for (name, _) in names {
+        if out.len() >= limit {
+            break;
+        }
+        if !out.iter().any(|x| x.eq_ignore_ascii_case(&name)) {
+            out.push(name);
+        }
+    }
+    out.join(", ")
 }
 
 /// Two beats describing the same moment, produced by neighbouring windows

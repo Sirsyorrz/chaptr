@@ -185,6 +185,16 @@ pub fn chaptrs_all(
     cfg.temperature = settings.temperature;
     cfg.remote = crate::chaptrs::Remote::from(&crate::prefs::load());
 
+    // Gather names once from every transcript, so a window can refer to someone
+    // introduced hours earlier.
+    let mut everything: Vec<crate::model::Segment> = Vec::new();
+    for rec in &todo {
+        if let Some(t) = workspace::maybe_json::<Transcript>(&ws.transcript(&rec.id)) {
+            everything.extend(t.segments);
+        }
+    }
+    cfg.roster = chaptrs::roster(&everything, &settings.notes, 40);
+
     p.message = if cfg.remote.is_some() {
         "contacting the model".into()
     } else {
