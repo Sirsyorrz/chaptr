@@ -2,7 +2,7 @@ import { useStore } from "../state/store";
 import { hms, hoursMins } from "../types";
 
 /** What actually exists on disk per recording. Answers "did that job do anything?" */
-export function Files() {
+export function Transcribes() {
   const files = useStore((s) => s.files);
   const openFile = useStore((s) => s.openFile);
   const viewing = useStore((s) => s.viewing);
@@ -12,7 +12,7 @@ export function Files() {
   return (
     <div className="pane">
       <div className="pane-h">
-        <span>Files</span>
+        <span>Transcribes</span>
         <span className="count">{done} / {files.length} transcribed</span>
       </div>
       <div className="list">

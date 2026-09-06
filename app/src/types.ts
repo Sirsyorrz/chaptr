@@ -96,6 +96,7 @@ export interface Transcript {
 export interface TrackProbe {
   index: number;
   name: string;
+  channels: number;
   words_per_minute: number;
   sample: string;
   role: Role;

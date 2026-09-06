@@ -1,9 +1,10 @@
+import { useEffect } from "react";
 import { useStore } from "../state/store";
 import { ROLES, ROLE_HELP, ROLE_LABEL, type Role } from "../types";
 
 /**
- * Which audio track is what. Detection proposes, the user decides — one folder
- * can hold recordings made with different OBS routing, so roles are per layout.
+ * Which audio track is what. Roles can simply be set: a recording setup rarely
+ * changes, so detection is offered rather than required.
  */
 export function Tracks({ onClose }: { onClose: () => void }) {
   const layouts = useStore((s) => s.layouts);
@@ -11,7 +12,12 @@ export function Tracks({ onClose }: { onClose: () => void }) {
   const busy = useStore((s) => s.busy);
   const detect = useStore((s) => s.detect);
   const setRole = useStore((s) => s.setRole);
-  const saveSettings = useStore((s) => s.saveSettings);
+  const loadLayouts = useStore((s) => s.loadLayouts);
+
+  useEffect(() => {
+    if (!layouts.length) loadLayouts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const roleOf = (sig: string, i: number, fallback: Role): Role =>
     (settings?.roles[sig]?.[i] as Role) ?? fallback;
@@ -23,44 +29,43 @@ export function Tracks({ onClose }: { onClose: () => void }) {
           <span>Audio tracks</span>
           <span className="spacer" />
           <button onClick={detect} disabled={!!busy}>
-            {busy ? busy : layouts.length ? "Detect again" : "Detect tracks"}
+            {busy ? busy : "Listen and guess"}
           </button>
-          <button onClick={onClose}>Close</button>
+          <button onClick={onClose}>Done</button>
         </div>
 
         <div className="sheet-scroll">
           <p className="note">
-            chaptr listens to a minute of each track and guesses. It spots game
-            audio reliably, but nothing in the sound itself says whether a voice
-            track is you or your friends, so check anything marked "not sure".
-            Getting this right is what lets chaptrs say who did what.
+            Set what each track holds. Most setups never change, so this is
+            usually a one-off. "Listen and guess" samples three minutes from one
+            recording per layout — it does not scan the whole project, so it
+            takes seconds even on a hundred hours.
           </p>
-
-          {!layouts.length && (
-            <p className="pad dim">
-              Run detect to see what each track contains.
-              {settings && Object.keys(settings.roles).length > 0 &&
-                " Saved roles are already in use."}
-            </p>
-          )}
+          <p className="note">
+            The pairing that matters is <b>me</b> and <b>friends</b>. With both
+            set, chaptr transcribes them separately and can say who did what.
+            With only <b>everything mixed</b> it still works, but chaptrs come
+            out as "a player…" because nothing identifies the speaker.
+          </p>
 
           {layouts.map((l) => (
             <div className="layout" key={l.signature}>
               <div className="layout-h">
-                <b>{l.signature}</b>
+                <b>{l.track_count} tracks</b>
                 <span className="dim">
                   {l.recordings} recording{l.recordings === 1 ? "" : "s"} · e.g. {l.example}
                 </span>
               </div>
               {l.tracks.map((t) => {
                 const role = roleOf(l.signature, t.index, t.role);
+                const heard = t.words_per_minute >= 0;
                 return (
                   <div className={"trow" + (role === "unknown" ? " unsure" : "")} key={t.index}>
                     <span className="tname">
-                      {t.index}. {t.name}
+                      {t.index + 1}. {t.name}
                     </span>
                     <span className="wpm mono" title="Words per minute heard">
-                      {t.words_per_minute.toFixed(0)} wpm
+                      {heard ? `${t.words_per_minute.toFixed(0)} wpm` : ""}
                     </span>
                     <select
                       value={role}
@@ -72,7 +77,9 @@ export function Tracks({ onClose }: { onClose: () => void }) {
                       ))}
                     </select>
                     <span className="tsample dim" title={t.sample}>
-                      {t.sample.slice(0, 110) || "— nothing heard —"}
+                      {heard
+                        ? t.sample.slice(0, 110) || "— nothing heard —"
+                        : `${t.channels} channel${t.channels === 1 ? "" : "s"}`}
                     </span>
                   </div>
                 );
@@ -80,24 +87,7 @@ export function Tracks({ onClose }: { onClose: () => void }) {
             </div>
           ))}
 
-          <div className="layout">
-            <div className="layout-h"><b>What this footage is</b></div>
-            <p className="note">
-              Used to word the prompt. Nothing else in chaptr is game-specific.
-            </p>
-            <input
-              className="wide"
-              placeholder="a match of Deadlock, a hero shooter"
-              defaultValue={settings?.subject ?? ""}
-              onBlur={(e) => saveSettings({ subject: e.target.value })}
-            />
-            <input
-              className="wide"
-              placeholder="names and jargon: Haze, Abrams, ult, urn"
-              defaultValue={settings?.notes ?? ""}
-              onBlur={(e) => saveSettings({ notes: e.target.value })}
-            />
-          </div>
+          {!layouts.length && <p className="pad dim">Import some recordings first.</p>}
         </div>
       </div>
     </div>

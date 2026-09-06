@@ -25,8 +25,9 @@ interface State {
   runId: number;
   files: FileStatus[];
   viewing: string | null;
-  tab: "chaptrs" | "files";
-  setTab: (t: "chaptrs" | "files") => void;
+  tab: "chaptrs" | "transcribes";
+  setTab: (t: "chaptrs" | "transcribes") => void;
+  loadLayouts: () => Promise<void>;
   refreshFiles: () => Promise<void>;
   openFile: (recordingId: string) => Promise<void>;
   boot: () => Promise<void>;
@@ -80,6 +81,13 @@ export const useStore = create<State>((set, get) => ({
   say: (status, statusKind = "") => set({ status, statusKind }),
 
   setTab: (tab) => set({ tab }),
+
+  /// Layouts without listening to anything, so roles can be set by hand.
+  loadLayouts: async () => {
+    const id = get().project?.id;
+    if (!id) return;
+    set({ layouts: await invoke<Layout[]>("list_layouts", { id }) });
+  },
 
   refreshFiles: async () => {
     const id = get().project?.id;

@@ -3,14 +3,15 @@ import { listen } from "@tauri-apps/api/event";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { useStore } from "./state/store";
 import { Chaptrs } from "./panels/Chaptrs";
-import { Files } from "./panels/Files";
+import { Transcribes } from "./panels/Transcribes";
 import { Transcript } from "./panels/Transcript";
 import { Tracks } from "./panels/Tracks";
+import { FindChaptrs } from "./panels/FindChaptrs";
 import { hoursMins, type JobProgress } from "./types";
 
 export default function App() {
   const [showTracks, setShowTracks] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
+  const [showFind, setShowFind] = useState(false);
   const s = useStore();
 
   useEffect(() => {
@@ -68,17 +69,10 @@ export default function App() {
     if (typeof f === "string") s.saveProject(f);
   };
 
-  const pickFolder = async () => {
-    setImportOpen(false);
-    const dir = await openDialog({ directory: true, title: "Pick a folder of recordings" });
-    if (typeof dir === "string") s.openSources([dir]);
-  };
-
-  const pickClips = async () => {
-    setImportOpen(false);
+  const importClips = async () => {
     const files = await openDialog({
       multiple: true,
-      title: "Pick one or more clips",
+      title: "Choose recordings",
       filters: [{ name: "Video", extensions: ["mp4", "mkv", "mov", "flv"] }],
     });
     if (Array.isArray(files) && files.length) s.openSources(files as string[]);
@@ -95,17 +89,9 @@ export default function App() {
           {s.project ? s.project.name : "no project"}
           {s.project?.unsaved && <b className="dot">•</b>}
         </span>
-        <div className="menuwrap">
-          <button onClick={() => setImportOpen(!importOpen)} title="Add footage">
-            Import
-          </button>
-          {importOpen && (
-            <div className="menu" onMouseLeave={() => setImportOpen(false)}>
-              <button onClick={pickFolder}>Whole folder</button>
-              <button onClick={pickClips}>One or more clips</button>
-            </div>
-          )}
-        </div>
+        <button onClick={importClips} title="Choose one or more recordings">
+          Import
+        </button>
         <button onClick={openProjectFile} title="Open a saved chaptr project">Open</button>
         {s.project && (
           <button
@@ -118,7 +104,7 @@ export default function App() {
         <button onClick={() => s.runJob("transcribe")} disabled={!lib || !!s.busy}>
           Transcribe
         </button>
-        <button onClick={() => s.runJob("chaptrs")} disabled={!lib || !!s.busy}>
+        <button onClick={() => setShowFind(true)} disabled={!lib || !!s.busy}>
           Find chaptrs
         </button>
         {s.busy && <button className="warn" onClick={s.cancelJob}>Stop</button>}
@@ -176,10 +162,12 @@ export default function App() {
       {!s.project && (
         <div className="empty-state">
           <h2>No project open</h2>
-          <p>Import footage to start, or open a saved .chaptr project.</p>
+          <p>
+            Choose your recordings to start, or open a saved project.
+            Select every clip in a folder if you want the whole shoot.
+          </p>
           <div className="row">
-            <button onClick={pickFolder}>Import a folder</button>
-            <button onClick={pickClips}>Import clips</button>
+            <button onClick={importClips}>Import recordings</button>
             <button onClick={openProjectFile}>Open a project</button>
           </div>
         </div>
@@ -192,11 +180,14 @@ export default function App() {
             <button className={s.tab === "chaptrs" ? "on" : ""} onClick={() => s.setTab("chaptrs")}>
               Chaptrs {s.chaptrs.length ? `(${s.chaptrs.length})` : ""}
             </button>
-            <button className={s.tab === "files" ? "on" : ""} onClick={() => s.setTab("files")}>
-              Files {s.files.length ? `(${s.files.length})` : ""}
+            <button
+              className={s.tab === "transcribes" ? "on" : ""}
+              onClick={() => s.setTab("transcribes")}
+            >
+              Transcribes {s.files.length ? `(${s.files.length})` : ""}
             </button>
           </div>
-          {s.tab === "chaptrs" ? <Chaptrs /> : <Files />}
+          {s.tab === "chaptrs" ? <Chaptrs /> : <Transcribes />}
         </div>
         <div className="right"><Transcript /></div>
       </div>
@@ -223,6 +214,7 @@ export default function App() {
       </div>
 
       {showTracks && <Tracks onClose={() => setShowTracks(false)} />}
+      {showFind && <FindChaptrs onClose={() => setShowFind(false)} />}
     </div>
   );
 }

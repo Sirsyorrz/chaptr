@@ -47,6 +47,8 @@ impl Role {
 pub struct TrackProbe {
     pub index: usize,
     pub name: String,
+    #[serde(default)]
+    pub channels: u32,
     pub words_per_minute: f64,
     /// A little of what was heard, so the user can identify the track by eye.
     pub sample: String,
@@ -56,7 +58,23 @@ pub struct TrackProbe {
     /// Full probe text. Containment needs all of it; `sample` is truncated for
     /// display and comparing those was why mixed tracks went undetected.
     #[serde(skip)]
-    full: String,
+    pub full: String,
+}
+
+impl TrackProbe {
+    /// A track chaptr has not listened to, carrying whatever role was saved.
+    pub fn unheard(index: usize, name: &str, channels: u32, role: Role, known: bool) -> Self {
+        Self {
+            index,
+            name: name.to_string(),
+            channels,
+            words_per_minute: -1.0,
+            sample: String::new(),
+            role,
+            confident: known,
+            full: String::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -174,6 +192,7 @@ pub fn probe_layout(
         probes.push(TrackProbe {
             index: i,
             name: track.name.clone(),
+            channels: track.channels,
             words_per_minute: wpm,
             sample,
             full,

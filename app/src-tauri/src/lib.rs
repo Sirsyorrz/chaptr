@@ -111,6 +111,45 @@ fn save_settings(id: String, settings: Settings) -> Result<(), String> {
     workspace::write_json(&ws.settings(), &settings).map_err(|e| e.to_string())
 }
 
+/// The track layouts in this project, without listening to anything. Lets the
+/// roles be set by hand, which is usually all that is needed: a recording setup
+/// rarely changes between sessions.
+#[tauri::command]
+fn list_layouts(id: String) -> Vec<Layout> {
+    let ws = project::workspace(&id);
+    let Some(lib) = workspace::maybe_json::<Library>(&ws.library()) else {
+        return Vec::new();
+    };
+    let settings: Settings = workspace::maybe_json(&ws.settings()).unwrap_or_default();
+
+    tracks::layouts(&lib)
+        .into_iter()
+        .map(|(signature, rec, recordings)| {
+            let saved = settings.roles.get(&signature);
+            Layout {
+                track_count: rec.tracks.len(),
+                recordings,
+                example: rec.name.clone(),
+                tracks: rec
+                    .tracks
+                    .iter()
+                    .enumerate()
+                    .map(|(i, t)| {
+                        tracks::TrackProbe::unheard(
+                            i,
+                            &t.name,
+                            t.channels,
+                            saved.and_then(|r| r.get(i).copied()).unwrap_or(Role::Unknown),
+                            saved.is_some(),
+                        )
+                    })
+                    .collect(),
+                signature,
+            }
+        })
+        .collect()
+}
+
 /// Transcribes samples of every track in each distinct layout and proposes a
 /// role for each. Advisory: `unknown` tracks cannot be resolved from audio
 /// alone and need the user to say which is which.
@@ -376,6 +415,7 @@ pub fn run() {
             load_library,
             get_settings,
             save_settings,
+            list_layouts,
             detect_tracks,
             set_roles,
             load_chaptrs,
