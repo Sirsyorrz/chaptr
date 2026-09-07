@@ -23,9 +23,10 @@
   flex: none;
 }
 .topbar .brand {
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  height: 22px;
+  width: auto;
   padding-right: var(--sp-1);
+  opacity: 0.9;
 }
 .topbar select { max-width: 460px; }
 button.accent {

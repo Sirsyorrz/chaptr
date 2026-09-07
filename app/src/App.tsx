@@ -8,6 +8,7 @@ import { Transcript } from "./panels/Transcript";
 import { Tracks } from "./panels/Tracks";
 import { FindChaptrs } from "./panels/FindChaptrs";
 import { Settings } from "./panels/Settings";
+import wordmark from "./assets/wordmark.png";
 import { hoursMins, type JobProgress } from "./types";
 
 export default function App() {
@@ -94,7 +95,7 @@ export default function App() {
   return (
     <div className="app">
       <div className="topbar">
-        <span className="brand">chaptr</span>
+        <img className="brand" src={wordmark} alt="chaptr" />
         <span className="title" title={s.project?.sources.join("\n") || ""}>
           {s.project ? s.project.name : "no project"}
           {s.project?.unsaved && <b className="dot">•</b>}
