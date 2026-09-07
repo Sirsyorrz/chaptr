@@ -38,7 +38,9 @@
     ],
     "licenseFile": "../../LICENSE-THIRD-PARTY.md",
     "resources": {
-      "bin/*": "bin/"
+      "bin/ffmpeg/*": "bin/ffmpeg/",
+      "bin/whisper/*": "bin/whisper/",
+      "bin/llama/*": "bin/llama/"
     }
   }
 }

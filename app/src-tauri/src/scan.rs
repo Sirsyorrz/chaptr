@@ -1,3 +1,4 @@
+use crate::sidecar;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -60,7 +61,7 @@ fn fps_of(stream: &Value) -> f64 {
 }
 
 pub fn probe(sc: &Sidecars, path: &Path) -> Result<Recording> {
-    let out = Command::new(&sc.ffprobe)
+    let out = sidecar::command(&sc.ffprobe)
         .args(["-v", "error", "-print_format", "json", "-show_format", "-show_streams"])
         .arg(path)
         .output()

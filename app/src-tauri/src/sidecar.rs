@@ -1,6 +1,29 @@
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use anyhow::{bail, Result};
+
+/// Builds a command for one of the bundled tools.
+///
+/// The whisper.cpp and llama.cpp Linux builds are dynamically linked against
+/// their own `.so` files sitting next to them, which the loader will not find
+/// on its own. Pointing it at the tool's own directory avoids having to
+/// rewrite rpaths at packaging time.
+pub fn command(tool: &Path) -> Command {
+    let mut cmd = Command::new(tool);
+    if cfg!(target_os = "linux") {
+        if let Some(dir) = tool.parent().filter(|d| !d.as_os_str().is_empty()) {
+            let mut dirs = vec![dir.to_path_buf()];
+            if let Some(existing) = std::env::var_os("LD_LIBRARY_PATH") {
+                dirs.extend(std::env::split_paths(&existing));
+            }
+            if let Ok(joined) = std::env::join_paths(dirs) {
+                cmd.env("LD_LIBRARY_PATH", joined);
+            }
+        }
+    }
+    cmd
+}
 
 /// External executables chaptr drives. Shipped alongside the app in `bin/`,
 /// with a fall back to PATH so a dev checkout works without vendoring them.
@@ -56,11 +79,21 @@ fn on_path(name: &str) -> Option<PathBuf> {
 
 fn locate(stem: &str) -> Option<PathBuf> {
     let name = exe(stem);
-    bundled_dirs()
-        .into_iter()
-        .map(|d| d.join(&name))
-        .find(|p| p.is_file())
-        .or_else(|| on_path(&name))
+    for dir in bundled_dirs() {
+        let direct = dir.join(&name);
+        if direct.is_file() {
+            return Some(direct);
+        }
+        // Each tool sits in its own subfolder with its own libraries.
+        let subdirs = std::fs::read_dir(&dir).into_iter().flatten().flatten();
+        for entry in subdirs {
+            let candidate = entry.path().join(&name);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+    on_path(&name)
 }
 
 impl Sidecars {

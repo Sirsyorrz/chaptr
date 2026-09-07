@@ -1,3 +1,4 @@
+use crate::sidecar;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -16,7 +17,7 @@ fn run_ffmpeg(
     duration: f64,
     mut on_progress: impl FnMut(f64),
 ) -> Result<()> {
-    let mut child = Command::new(&sc.ffmpeg)
+    let mut child = sidecar::command(&sc.ffmpeg)
         .args(["-hide_banner", "-nostdin", "-loglevel", "error", "-progress", "pipe:1", "-y"])
         .args(&args)
         .stdout(Stdio::piped())

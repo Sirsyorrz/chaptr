@@ -37,14 +37,24 @@ const sources = {
       pick: (f) => /llama-server\.exe$/i.test(f) || /\.dll$/i.test(f),
     },
   ],
-  // Linux ships ffmpeg only. The whisper and llama Linux archives are dynamically
-  // linked against their own .so files, which needs rpath work an AppImage would
-  // then have to preserve; both fall back to PATH instead.
+  // The Linux whisper and llama builds are dynamically linked against the .so
+  // files packed beside them, so those ship too and sidecar::command points the
+  // loader at the folder.
   linux: [
     {
       name: "ffmpeg",
       url: `https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-${FFMPEG}-linux64-lgpl-8.1.tar.xz`,
       pick: (f) => /[/\\]bin[/\\](ffmpeg|ffprobe)$/.test(f),
+    },
+    {
+      name: "whisper",
+      url: `https://github.com/ggml-org/whisper.cpp/releases/download/${WHISPER}/whisper-bin-ubuntu-x64.tar.gz`,
+      pick: (f) => /[/\\]whisper-cli$/.test(f) || /\.so(\.\d+)*$/.test(f),
+    },
+    {
+      name: "llama",
+      url: `https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA}/llama-${LLAMA}-bin-ubuntu-vulkan-x64.tar.gz`,
+      pick: (f) => /[/\\]llama-server$/.test(f) || /\.so(\.\d+)*$/.test(f),
     },
   ],
 };
@@ -98,15 +108,28 @@ for (const src of wanted) {
 
   const picked = walk(staging).filter(src.pick);
   if (!picked.length) throw new Error(`${src.name}: archive contained nothing matching`);
-  for (const f of picked) copyFileSync(f, join(out, basename(f)));
-  console.log(`  ${picked.length} files -> bin/`);
+
+  // Each tool gets its own folder. whisper.cpp and llama.cpp both ship
+  // libggml-base and friends built from different revisions; flattened
+  // together, whichever landed last would be loaded by both.
+  const dest = join(out, src.name);
+  mkdirSync(dest, { recursive: true });
+  for (const f of picked) copyFileSync(f, join(dest, basename(f)));
+  console.log(`  ${picked.length} files -> bin/${src.name}/`);
 }
 
-const required = platform === "win32"
-  ? ["ffmpeg.exe", "ffprobe.exe", "whisper-cli.exe", "llama-server.exe"]
-  : ["ffmpeg", "ffprobe"];
-const absent = required.filter((f) => !existsSync(join(out, f)));
-if (absent.length) throw new Error(`missing after fetch: ${absent.join(", ")}`);
+const suffix = platform === "win32" ? ".exe" : "";
+const required = [
+  ["ffmpeg", `ffmpeg${suffix}`],
+  ["ffmpeg", `ffprobe${suffix}`],
+  ["whisper", `whisper-cli${suffix}`],
+  ["llama", `llama-server${suffix}`],
+];
+const absent = required.filter(([d, f]) => !existsSync(join(out, d, f)));
+if (absent.length) {
+  throw new Error(`missing after fetch: ${absent.map(([d, f]) => `${d}/${f}`).join(", ")}`);
+}
 
-const total = readdirSync(out).reduce((n, f) => n + statSync(join(out, f)).size, 0);
-console.log(`\n${readdirSync(out).length} files, ${(total / 1e6).toFixed(0)} MB in ${out}`);
+const all = walk(out);
+const total = all.reduce((n, f) => n + statSync(f).size, 0);
+console.log(`\n${all.length} files, ${(total / 1e6).toFixed(0)} MB in ${out}`);

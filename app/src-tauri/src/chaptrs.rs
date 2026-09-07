@@ -1,3 +1,4 @@
+use crate::sidecar;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -111,7 +112,7 @@ impl Llm {
             bail!("llm model missing: {}", cfg.model.display());
         }
 
-        let child = Command::new(&sc.llama)
+        let child = sidecar::command(&sc.llama)
             .arg("-m").arg(&cfg.model)
             .args(["-ngl", "99"])
             .args(["-c", &cfg.context.to_string()])

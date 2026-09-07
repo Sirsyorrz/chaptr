@@ -1,3 +1,4 @@
+use crate::sidecar;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -56,7 +57,7 @@ pub fn transcribe(
     let stem = PathBuf::from(wav.to_string_lossy().trim_end_matches(".wav").to_string());
     let json_path = PathBuf::from(format!("{}.json", stem.to_string_lossy()));
 
-    let mut cmd = Command::new(&sc.whisper);
+    let mut cmd = sidecar::command(&sc.whisper);
     cmd.arg("-m").arg(&cfg.model)
         .arg("-f").arg(wav)
         .args(["-l", &cfg.language])
