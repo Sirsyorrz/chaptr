@@ -77,6 +77,10 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Declaring an updater pubkey makes every bundle a signed one, so the
+          # key is needed for plain builds too, not just releases.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # linuxdeploy mounts itself to run, which needs FUSE the runner does
           # not have. Extracting instead is the supported way round it.
           APPIMAGE_EXTRACT_AND_RUN: 1
@@ -85,7 +89,10 @@ jobs:
           args: ${{ matrix.args }}
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: chaptr ${{ github.ref_name }}
-          releaseDraft: true
+          # latest.json is what installed copies poll, and a draft release does
+          # not serve it, so tags publish straight away.
+          includeUpdaterJson: true
+          releaseDraft: false
 
       - uses: actions/upload-artifact@v4
         with:

@@ -614,3 +614,40 @@ p.note.warn { color: var(--sel); }
 }
 .dlrow .bar { flex: 1; }
 .note.warn { color: var(--sel); }
+
+/* Update nudge. Sits above the status bar so it never covers the transcript
+   scrollbar or the status text. */
+.toast {
+  position: fixed;
+  right: var(--sp-3);
+  bottom: calc(var(--sp-3) + 24px);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+}
+
+.toast .row {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.toast .bar {
+  width: 260px;
+}
+
+.toast button.link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

@@ -8,6 +8,8 @@ import { Transcript } from "./panels/Transcript";
 import { Tracks } from "./panels/Tracks";
 import { FindChaptrs } from "./panels/FindChaptrs";
 import { Settings } from "./panels/Settings";
+import { UpdateToast } from "./panels/UpdateToast";
+import { useUpdater } from "./state/updater";
 import wordmark from "./assets/wordmark.png";
 import { hoursMins, type JobProgress } from "./types";
 
@@ -19,6 +21,7 @@ export default function App() {
 
   useEffect(() => {
     s.boot();
+    useUpdater.getState().look();
     const un = listen<JobProgress>("job", (e) => useStore.getState().onJob(e.payload));
     const warn = (e: BeforeUnloadEvent) => {
       if (useStore.getState().project?.unsaved) e.preventDefault();
@@ -270,6 +273,8 @@ export default function App() {
         <span className="dim">/ search · j k move · f favourite · ctrl+S save</span>
         <span className={s.statusKind}>{s.status}</span>
       </div>
+
+      <UpdateToast />
 
       {showTracks && <Tracks onClose={() => setShowTracks(false)} />}
       {showFind && <FindChaptrs onClose={() => setShowFind(false)} />}

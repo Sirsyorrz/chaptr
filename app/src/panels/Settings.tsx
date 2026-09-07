@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { useStore } from "../state/store";
 import type { Prefs } from "../types";
 import { ModelPicker, VadNotice } from "./ModelStore";
+import { useUpdater } from "../state/updater";
 
 const PROVIDERS: { id: Prefs["cloud_provider"]; name: string; hint: string }[] = [
   { id: "anthropic", name: "Anthropic", hint: "claude-sonnet-4-20250514" },
@@ -16,10 +18,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const saveSettings = useStore((s) => s.saveSettings);
   const say = useStore((s) => s.say);
   const s = useStore();
+  const u = useUpdater();
   const [p, setP] = useState<Prefs | null>(null);
+  const [version, setVersion] = useState("");
 
   useEffect(() => {
     invoke<Prefs>("get_prefs").then(setP);
+    getVersion().then(setVersion);
   }, []);
 
   if (!p || !settings) return null;
@@ -50,6 +55,32 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
         <div className="sheet-scroll">
           <VadNotice />
+
+          <div className="layout">
+            <div className="layout-h"><b>Updates</b></div>
+            <div className="field">
+              <b>Version {version}</b>
+              <span className="note">
+                Updates are checked on GitHub at startup, then downloaded and
+                installed in place. chaptr restarts to finish.
+              </span>
+              <div className="row">
+                <button onClick={() => u.look(true)} disabled={u.phase === "checking" || u.phase === "downloading"}>
+                  {u.phase === "checking" ? "Checking\u2026" : "Check for updates"}
+                </button>
+                {u.phase === "found" && u.update && (
+                  <button className="accent" onClick={() => u.install()}>
+                    Install {u.update.version}
+                  </button>
+                )}
+                {u.phase === "downloading" && <span className="dim">downloading {u.percent}%</span>}
+                {u.phase === "ready" && (
+                  <button className="accent" onClick={() => u.restart()}>Restart to finish</button>
+                )}
+                {u.phase === "error" && <span className="dim">{u.error}</span>}
+              </div>
+            </div>
+          </div>
 
           <div className="layout">
             <div className="layout-h"><b>DaVinci Resolve</b></div>
