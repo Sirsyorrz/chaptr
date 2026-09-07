@@ -5,9 +5,9 @@
 //! Studio-only from Resolve 19.1 and needs Python, while a script started from
 //! Workspace > Scripts works on the free edition with nothing installed.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 
 const SCRIPT: &str = include_str!("../../../resolve/Chaptr Link.lua");
 const NAME: &str = "Chaptr Link.lua";
@@ -41,6 +41,18 @@ fn candidates() -> Vec<PathBuf> {
                 );
             }
         }
+        // The all-users location, which has no Support segment. Writing here
+        // usually needs administrator rights, so it is tried last.
+        if let Some(programdata) = std::env::var_os("PROGRAMDATA") {
+            out.push(
+                PathBuf::from(programdata)
+                    .join("Blackmagic Design")
+                    .join("DaVinci Resolve")
+                    .join("Fusion")
+                    .join("Scripts")
+                    .join("Utility"),
+            );
+        }
     }
     #[cfg(not(windows))]
     {
@@ -68,12 +80,33 @@ pub fn installed() -> bool {
 /// Copy the watcher into Resolve's scripts folder. Resolve picks it up without
 /// a restart, but it has to be started by hand once per session.
 pub fn install() -> Result<PathBuf> {
-    let dir = scripts_dir().context("could not work out Resolve's scripts folder")?;
-    std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
+    let preferred = scripts_dir().context("could not work out Resolve's scripts folder")?;
+    let mut targets = vec![preferred.clone()];
+    targets.extend(candidates().into_iter().filter(|d| *d != preferred));
+
+    let mut failures = Vec::new();
+    for dir in targets {
+        match write_to(&dir) {
+            Ok(dest) => {
+                for d in candidates() {
+                    let _ = std::fs::remove_file(d.join(OLD_NAME));
+                }
+                return Ok(dest);
+            }
+            Err(e) => failures.push(format!("{}: {e}", dir.display())),
+        }
+    }
+    bail!("could not install the script.\n{}", failures.join("\n"))
+}
+
+/// Writes and then reads back, because a write that reports success but leaves
+/// no file is exactly the failure this is meant to catch.
+fn write_to(dir: &Path) -> Result<PathBuf> {
+    std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
     let dest = dir.join(NAME);
     std::fs::write(&dest, SCRIPT).with_context(|| format!("writing {}", dest.display()))?;
-    for d in candidates() {
-        let _ = std::fs::remove_file(d.join(OLD_NAME));
+    if !dest.is_file() {
+        bail!("wrote {} but it is not there", dest.display());
     }
     Ok(dest)
 }

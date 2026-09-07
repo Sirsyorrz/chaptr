@@ -69,6 +69,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
               {s.resolveLink?.scripts_dir && (
                 <span className="note mono">{s.resolveLink.scripts_dir}</span>
               )}
+              {s.resolveResult && (
+                <span className={s.resolveResult.ok ? "note mono" : "note mono bad"}>
+                  {s.resolveResult.ok
+                    ? `wrote ${s.resolveResult.text}`
+                    : s.resolveResult.text}
+                </span>
+              )}
             </div>
           </div>
 

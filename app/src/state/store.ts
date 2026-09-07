@@ -49,6 +49,7 @@ interface State {
 
   resolveLink: { installed: boolean; scripts_dir: string } | null;
   checkResolve: () => Promise<void>;
+  resolveResult: { ok: boolean; text: string } | null;
   installResolve: () => Promise<void>;
   gotoResolve: (recordingId: string, offset: number) => void;
   select: (i: number | null) => Promise<void>;
@@ -332,6 +333,8 @@ export const useStore = create<State>((set, get) => ({
     set({ transcript: t });
   },
 
+  resolveResult: null,
+
   checkResolve: async () => {
     try {
       set({ resolveLink: await invoke("resolve_link") });
@@ -343,10 +346,12 @@ export const useStore = create<State>((set, get) => ({
   installResolve: async () => {
     try {
       const at = await invoke<string>("install_resolve_link");
-      get().say(`installed to ${at} — start it from Workspace > Scripts`, "ok");
+      set({ resolveResult: { ok: true, text: at } });
+      get().say("script installed — start it from Workspace > Scripts", "ok");
       get().checkResolve();
     } catch (e) {
-      get().say(String(e), "warn");
+      set({ resolveResult: { ok: false, text: String(e) } });
+      get().say("could not install the Resolve script", "warn");
     }
   },
 
