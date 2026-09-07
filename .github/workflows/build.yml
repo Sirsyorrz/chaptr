@@ -7,6 +7,9 @@ on:
 
 jobs:
   build:
+    # Creating the release needs write access; the default token is read-only.
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
