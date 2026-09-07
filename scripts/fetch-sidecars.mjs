@@ -19,7 +19,7 @@ const FFMPEG = "n8.1-latest";
 
 // whisper.cpp publishes no Vulkan build for any platform, so the entries below
 // are the CPU ones. scripts/build-whisper-vulkan.mjs compiles a GPU whisper-cli
-// instead, and is run with SIDECAR_SKIP=whisper set here. See WINDOWS.md.
+// instead, and is run with SIDECAR_SKIP=whisper set here.
 const sources = {
   win32: [
     {

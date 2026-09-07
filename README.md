@@ -62,8 +62,8 @@ chaptr-cli scan|transcribe|chaptrs|projects|resolve|models|doctor
 ```
 
 whisper.cpp publishes no Vulkan binaries, so Windows GPU transcription is
-compiled in CI by `scripts/build-whisper-vulkan.mjs`. Details in
-[WINDOWS.md](WINDOWS.md).
+compiled from source in CI by `scripts/build-whisper-vulkan.mjs`, against the
+Vulkan SDK. Everything else is a pinned upstream release.
 
 ## Status
 
