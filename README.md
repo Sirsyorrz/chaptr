@@ -43,7 +43,7 @@ model, around 10 GB depending on the tier you pick.
 a transcript line moves the playhead.
 
 Resolve's API can set the playhead but cannot start or stop playback, so press
-play in Resolve yourself — seeking works while it rolls.
+play in Resolve yourself.
 
 ## Building
 
@@ -63,7 +63,7 @@ chaptr-cli scan|transcribe|chaptrs|projects|resolve|models|doctor
 
 Windows GPU transcription is compiled in CI by
 `scripts/build-whisper-vulkan.mjs`, because whisper.cpp publishes no Vulkan
-binaries. Details in [WINDOWS.md](WINDOWS.md).
+binaries.
 
 ## Status
 
