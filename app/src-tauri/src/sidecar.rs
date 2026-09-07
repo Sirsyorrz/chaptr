@@ -56,8 +56,8 @@ fn bundled_dirs() -> Vec<PathBuf> {
             out.push(here.join("bin"));
             if let Some(up) = here.parent() {
                 // deb and AppImage key the resource folder off the product
-                // name, which is not the binary name: /usr/bin/chaptr-app has
-                // its resources in /usr/lib/chaptr/bin.
+                // name: /usr/bin/chaptr has its resources in
+                // /usr/lib/chaptr/bin.
                 out.push(up.join("lib").join(env!("CARGO_PKG_NAME")).join("bin"));
                 if let Some(stem) = exe.file_stem() {
                     out.push(up.join("lib").join(stem).join("bin"));

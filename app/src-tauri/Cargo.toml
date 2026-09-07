@@ -3,14 +3,18 @@ name = "chaptr"
 version = "0.1.0"
 edition = "2021"
 # Two binaries ship, so the bundler has to be told which one is the app.
-default-run = "chaptr-app"
+# The app binary is named after the product on purpose: on Wayland the
+# compositor matches a window to its .desktop file by app id, which is the
+# binary name, so chaptr-app would find no chaptr.desktop and show a
+# placeholder icon.
+default-run = "chaptr"
 
 [lib]
 name = "chaptr"
 path = "src/lib.rs"
 
 [[bin]]
-name = "chaptr-app"
+name = "chaptr"
 path = "src/main.rs"
 
 [[bin]]
