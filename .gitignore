@@ -7,7 +7,6 @@ __pycache__/
 app/src-tauri/target/
 
 # working notes, kept local
-plan.md
 plan2.md
 BENCHMARKS.md
 
