@@ -39,7 +39,7 @@ export function Chaptrs() {
     );
   }
 
-  let lastSession = -1;
+  let lastRecording = "";
 
   return (
     <div className="pane">
@@ -53,8 +53,10 @@ export function Chaptrs() {
       <div className="list" ref={listRef}>
         {rows.map(({ b, i }: { b: Chaptr; i: number }) => {
           const meta = byId.get(b.recording_id);
-          const header = meta && meta.session !== lastSession;
-          if (header) lastSession = meta!.session;
+          // Per recording, not per session: a session is several files and the
+          // swap between them is exactly what the header is there to show.
+          const header = meta && b.recording_id !== lastRecording;
+          if (header) lastRecording = b.recording_id;
           return (
             <div key={i}>
               {header && (
