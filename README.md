@@ -4,7 +4,7 @@ Point it at gameplay recordings. It transcribes them locally and writes a
 searchable, timestamped play-by-play, so you can find the moments worth cutting
 without scrubbing a hundred hours by hand.
 
-Everything runs on your machine. No uploads, no account, no API key.
+Everything runs on your machine.
 
 ## What it does
 
