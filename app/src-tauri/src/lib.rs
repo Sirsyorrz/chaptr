@@ -382,6 +382,53 @@ fn load_transcript(id: String, recording_id: String) -> Option<Transcript> {
     workspace::maybe_json(&project::workspace(&id).transcript(&recording_id))
 }
 
+/// One matching transcript line, with enough context to jump to it.
+#[derive(Serialize)]
+pub struct TranscriptHit {
+    recording_id: String,
+    name: String,
+    start: f64,
+    global: f64,
+    who: String,
+    text: String,
+}
+
+#[tauri::command]
+fn search_transcripts(id: String, query: String) -> Vec<TranscriptHit> {
+    let q = query.trim().to_lowercase();
+    if q.is_empty() {
+        return Vec::new();
+    }
+    let ws = project::workspace(&id);
+    let Some(lib) = workspace::maybe_json::<Library>(&ws.library()) else {
+        return Vec::new();
+    };
+    let mut hits = Vec::new();
+    for r in &lib.recordings {
+        let Some(tr) = workspace::maybe_json::<Transcript>(&ws.transcript(&r.id)) else {
+            continue;
+        };
+        for s in &tr.segments {
+            if s.text.to_lowercase().contains(&q) {
+                hits.push(TranscriptHit {
+                    recording_id: r.id.clone(),
+                    name: r.name.clone(),
+                    start: s.start,
+                    global: r.global_offset + s.start,
+                    who: s.who.clone(),
+                    text: s.text.clone(),
+                });
+            }
+            // A whole shoot can be tens of thousands of lines; the list is
+            // unusable long before that.
+            if hits.len() >= 500 {
+                return hits;
+            }
+        }
+    }
+    hits
+}
+
 /// Kicks off a long pass on a worker thread and streams `job` events. Only one
 /// runs at a time: both stages want the whole GPU.
 #[tauri::command]
@@ -591,6 +638,7 @@ pub fn run() {
             load_chaptrs,
             save_chaptrs,
             load_transcript,
+            search_transcripts,
             start_job,
             cancel_job,
             job_status,

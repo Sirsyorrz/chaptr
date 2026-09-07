@@ -182,6 +182,15 @@ export interface FileStatus {
   transcribed: boolean;
 }
 
+export interface TranscriptHit {
+  recording_id: string;
+  name: string;
+  start: number;
+  global: number;
+  who: string;
+  text: string;
+}
+
 export interface CatalogueEntry {
   id: string;
   file: string;

@@ -125,14 +125,17 @@ export default function App() {
         <button onClick={() => setShowTracks(true)} disabled={!lib}>Tracks</button>
         <input
           className="search"
-          placeholder="search chaptrs  ( / )"
+          placeholder={s.tab === "chaptrs" ? "search chaptrs  ( / )" : "search transcripts  ( / )"}
+          title={s.tab === "chaptrs" ? "Searches chaptr titles" : "Searches every transcript in the project"}
           value={s.query}
           onChange={(e) => s.setQuery(e.target.value)}
         />
-        <label className="inline">
-          <input type="checkbox" checked={s.starredOnly} onChange={s.toggleStarredOnly} />
-          starred
-        </label>
+        {s.tab === "chaptrs" && (
+          <label className="inline">
+            <input type="checkbox" checked={s.starredOnly} onChange={s.toggleStarredOnly} />
+            starred
+          </label>
+        )}
         <span className="spacer" />
         <button onClick={() => setShowSettings(true)}>Settings</button>
         <button
