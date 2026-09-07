@@ -20,9 +20,31 @@ fn exe(stem: &str) -> String {
     }
 }
 
-fn bundled_dir() -> Option<PathBuf> {
-    let dir = std::env::current_exe().ok()?.parent()?.join("bin");
-    dir.is_dir().then_some(dir)
+/// Where a packaged build keeps its executables. Windows and macOS put
+/// resources beside the binary; deb and AppImage put the binary in `bin/` and
+/// its resources in `lib/<product>/`, so both shapes are tried.
+fn bundled_dirs() -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    if let Some(dir) = std::env::var_os("CHAPTR_BIN") {
+        out.push(PathBuf::from(dir));
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(here) = exe.parent() {
+            out.push(here.join("bin"));
+            if let Some(up) = here.parent() {
+                // deb and AppImage key the resource folder off the product
+                // name, which is not the binary name: /usr/bin/chaptr-app has
+                // its resources in /usr/lib/chaptr/bin.
+                out.push(up.join("lib").join(env!("CARGO_PKG_NAME")).join("bin"));
+                if let Some(stem) = exe.file_stem() {
+                    out.push(up.join("lib").join(stem).join("bin"));
+                }
+                out.push(up.join("Resources").join("bin"));
+            }
+        }
+    }
+    out.retain(|d| d.is_dir());
+    out
 }
 
 fn on_path(name: &str) -> Option<PathBuf> {
@@ -34,13 +56,11 @@ fn on_path(name: &str) -> Option<PathBuf> {
 
 fn locate(stem: &str) -> Option<PathBuf> {
     let name = exe(stem);
-    if let Some(dir) = bundled_dir() {
-        let p = dir.join(&name);
-        if p.is_file() {
-            return Some(p);
-        }
-    }
-    on_path(&name)
+    bundled_dirs()
+        .into_iter()
+        .map(|d| d.join(&name))
+        .find(|p| p.is_file())
+        .or_else(|| on_path(&name))
 }
 
 impl Sidecars {

@@ -10,3 +10,7 @@ app/src-tauri/target/
 plan.md
 plan2.md
 BENCHMARKS.md
+
+# fetched sidecars and their download cache
+app/src-tauri/bin/
+.sidecar-cache/

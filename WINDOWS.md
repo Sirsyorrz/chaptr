@@ -74,10 +74,34 @@ first zip.
 whisper.cpp and llama.cpp are MIT. Model weights have their own terms — Qwen3
 is Apache 2.0, which is fine for this.
 
+## How it is built now
+
+GitHub Actions, `.github/workflows/build.yml`. Run it from the Actions tab
+("build" > Run workflow) or push a `v*` tag, which additionally opens a draft
+release. Artifacts are kept for 14 days.
+
+| Platform | Produces | Sidecars inside |
+|---|---|---|
+| windows-latest | NSIS installer `.exe` | ffmpeg, ffprobe, whisper-cli, llama-server |
+| ubuntu-22.04 | `.AppImage` and `.deb` | ffmpeg, ffprobe only |
+
+`scripts/fetch-sidecars.mjs` downloads them into `app/src-tauri/bin`, pinned to
+exact release tags. `SIDECAR_TARGET=win32` runs the Windows set from Linux,
+which is how the pinned URLs were checked. The bundler copies that folder to
+`bin/` beside the installed binary.
+
+Linux ships ffmpeg only: the whisper and llama Linux archives are dynamically
+linked against their own `.so` files and would need rpath work to survive
+packaging. Both fall back to PATH.
+
+**whisper is CPU-only on Windows.** whisper.cpp publishes no Vulkan build, and
+its CUDA builds are 12.4, which predates the 50-series. The BLAS build runs
+anywhere and is far slower than the 120x measured locally with CUDA. Fixing
+this means compiling whisper.cpp with Vulkan in CI.
+
 ## Still to do
 
-- [ ] Decide CI versus VM
-- [ ] Vendor the three Windows binaries and check them into a release step
+- [ ] Build whisper.cpp with Vulkan in CI so Windows gets GPU transcription
 - [ ] First-run screen: "chaptr needs to download about 10 GB"
 - [ ] Verify `%APPDATA%\chaptr` paths on a real Windows box
 - [ ] Confirm WebView2 is present or bootstrapped by the installer

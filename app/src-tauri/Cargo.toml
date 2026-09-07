@@ -2,6 +2,8 @@
 name = "chaptr"
 version = "0.1.0"
 edition = "2021"
+# Two binaries ship, so the bundler has to be told which one is the app.
+default-run = "chaptr-app"
 
 [lib]
 name = "chaptr"
