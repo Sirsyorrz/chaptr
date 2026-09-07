@@ -141,11 +141,30 @@ export default function App() {
         </button>
       </div>
 
-      {s.missing.length > 0 && (
-        <div className="banner bad">
-          Missing: {s.missing.join(", ")} — put them in the app's bin/ folder.
-        </div>
-      )}
+      {s.missing.length > 0 && (() => {
+        // Models are downloaded from Settings; the tools ship with the app. A
+        // single message cannot tell you what to do about both.
+        const tools = s.missing.filter((m) => !m.endsWith("model") && m !== "API key");
+        const models = s.missing.filter((m) => m.endsWith("model"));
+        const key = s.missing.includes("API key");
+        return (
+          <div className="banner bad">
+            {!!tools.length && (
+              <span>
+                Missing {tools.join(", ")}. The app was installed without them —
+                reinstall, or drop them in its bin folder.{" "}
+              </span>
+            )}
+            {!!models.length && <span>Not downloaded yet: {models.join(", ")}. </span>}
+            {key && <span>No API key set. </span>}
+            {(models.length > 0 || key) && (
+              <button className="link" onClick={() => setShowSettings(true)}>
+                Open Settings
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {s.job && !s.job.done && (
         <div className="jobbar">

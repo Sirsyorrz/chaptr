@@ -42,6 +42,17 @@ button.accent {
   align-items: center;
 }
 
+/* Inline action inside a banner: reads as a link, behaves as a button. */
+.banner button.link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .main {
   flex: 1;
   min-height: 0;
