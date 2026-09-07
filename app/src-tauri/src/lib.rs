@@ -142,13 +142,34 @@ fn list_models() -> prefs::Models {
     prefs::available(&model_dir())
 }
 
+/// Where downloaded weights live.
+///
+/// Not beside the executable: an AppImage runs from a read-only mount and an
+/// installed copy sits in a directory the user cannot write, so downloads
+/// there fail. A models folder next to the binary still wins when it already
+/// exists, which is how the dev tree points at a shared cache.
 fn model_dir() -> PathBuf {
-    std::env::var("CHAPTR_MODELS").map(PathBuf::from).unwrap_or_else(|_| {
-        std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|d| d.join("models")))
-            .unwrap_or_default()
-    })
+    if let Some(dir) = std::env::var_os("CHAPTR_MODELS") {
+        return PathBuf::from(dir);
+    }
+    let beside = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join("models")));
+    match beside {
+        Some(d) if writable(&d) => d,
+        _ => project::data_root().join("models"),
+    }
+}
+
+/// Permission bits lie on read-only mounts, so this writes something.
+fn writable(dir: &std::path::Path) -> bool {
+    if !dir.is_dir() {
+        return false;
+    }
+    let probe = dir.join(".chaptr-write-test");
+    let ok = std::fs::write(&probe, b"").is_ok();
+    let _ = std::fs::remove_file(&probe);
+    ok
 }
 
 #[derive(Serialize)]

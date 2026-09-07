@@ -19,8 +19,14 @@ export function ModelPicker({ kind, label, chosen, onChoose }: Props) {
   const [items, setItems] = useState<CatalogueEntry[]>([]);
   const [vram, setVram] = useState<number | null>(null);
   const [busy, setBusy] = useState<DownloadProgress | null>(null);
+  const [failed, setFailed] = useState("");
 
   const refresh = () => invoke<CatalogueEntry[]>("list_catalogue").then(setItems);
+
+  const start = (id: string) => {
+    setFailed("");
+    invoke("download_model", { id }).catch((e) => setFailed(String(e)));
+  };
 
   useEffect(() => {
     refresh();
@@ -28,6 +34,7 @@ export function ModelPicker({ kind, label, chosen, onChoose }: Props) {
     const un = listen<DownloadProgress>("download", (e) => {
       const p = e.payload;
       setBusy(p.done ? null : p);
+      if (p.error) setFailed(p.error);
       if (p.done) {
         refresh();
         useStore.getState().recheck();
@@ -80,12 +87,14 @@ export function ModelPicker({ kind, label, chosen, onChoose }: Props) {
       {!current.installed && !active && (
         <div className="dlrow">
           <button className="accent" disabled={!!busy}
-            onClick={() => invoke("download_model", { id: current.id })}>
+            onClick={() => start(current.id)}>
             Download {gb(current.bytes)}
           </button>
           {busy && <span className="dim">another download is running</span>}
         </div>
       )}
+
+      {failed && <span className="note warn">Download failed: {failed}</span>}
 
       {current.installed && !active && (
         <div className="dlrow">
@@ -103,6 +112,7 @@ export function ModelPicker({ kind, label, chosen, onChoose }: Props) {
 export function VadNotice() {
   const [entry, setEntry] = useState<CatalogueEntry | null>(null);
   const [busy, setBusy] = useState<DownloadProgress | null>(null);
+  const [failed, setFailed] = useState("");
 
   const refresh = () =>
     invoke<CatalogueEntry[]>("list_catalogue").then((all) =>
@@ -113,6 +123,7 @@ export function VadNotice() {
     refresh();
     const un = listen<DownloadProgress>("download", (e) => {
       setBusy(e.payload.done ? null : e.payload);
+      if (e.payload.error) setFailed(e.payload.error);
       if (e.payload.done) refresh();
     });
     return () => { un.then((f) => f()); };
@@ -123,9 +134,17 @@ export function VadNotice() {
     <p className="note warn">
       Voice detection ({gb(entry.bytes)}) is missing. Transcripts will fill with
       repeated nonsense during silence without it.{" "}
-      <button disabled={!!busy} onClick={() => invoke("download_model", { id: entry.id })}>
+      <button
+        disabled={!!busy}
+        onClick={() => {
+          setFailed("");
+          invoke("download_model", { id: entry.id }).catch((e) => setFailed(String(e)));
+        }}
+      >
         Download
       </button>
+      {busy && !busy.done && <> {Math.round((busy.received / (busy.total || 1)) * 100)}%</>}
+      {failed && <> Download failed: {failed}</>}
     </p>
   );
 }
