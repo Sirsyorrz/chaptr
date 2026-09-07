@@ -49,10 +49,26 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .sidecar-cache
-          key: sidecars-${{ matrix.name }}-${{ hashFiles('scripts/fetch-sidecars.mjs') }}
+          key: sidecars-${{ matrix.name }}-${{ hashFiles('scripts/fetch-sidecars.mjs', 'scripts/build-whisper-vulkan.mjs') }}
 
       - name: Fetch sidecars
         run: node scripts/fetch-sidecars.mjs
+        env:
+          SIDECAR_SKIP: ${{ matrix.name == 'windows' && 'whisper' || '' }}
+
+      # whisper.cpp ships no Vulkan binaries, so the GPU build is compiled here.
+      - name: Install Vulkan SDK
+        if: matrix.name == 'windows'
+        uses: jakoch/install-vulkan-sdk-action@v1.6.0
+        with:
+          vulkan_version: 1.4.313.2
+          install_runtime: false
+          cache: true
+          stripdown: true
+
+      - name: Build whisper with Vulkan
+        if: matrix.name == 'windows'
+        run: node scripts/build-whisper-vulkan.mjs
 
       - name: Install frontend dependencies
         working-directory: app

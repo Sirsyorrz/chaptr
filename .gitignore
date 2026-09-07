@@ -14,3 +14,4 @@ BENCHMARKS.md
 # fetched sidecars and their download cache
 app/src-tauri/bin/
 .sidecar-cache/
+.whisper-build/

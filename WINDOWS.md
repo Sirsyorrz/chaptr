@@ -51,7 +51,7 @@ enough to test Vulkan or measure speed.
 
 | Piece | Source | Size | Notes |
 |---|---|---|---|
-| `whisper-cli.exe` | whisper.cpp releases | ~40 MB | use the **Vulkan** build |
+| `whisper-cli.exe` | built from source | ~40 MB | Vulkan, see below |
 | `llama-server.exe` | llama.cpp releases | ~50 MB | use the **Vulkan** build |
 | `ffmpeg.exe` | gyan.dev or BtbN builds | ~80 MB | see licensing below |
 
@@ -94,14 +94,24 @@ Linux ships ffmpeg only: the whisper and llama Linux archives are dynamically
 linked against their own `.so` files and would need rpath work to survive
 packaging. Both fall back to PATH.
 
-**whisper is CPU-only on Windows.** whisper.cpp publishes no Vulkan build, and
-its CUDA builds are 12.4, which predates the 50-series. The BLAS build runs
-anywhere and is far slower than the 120x measured locally with CUDA. Fixing
-this means compiling whisper.cpp with Vulkan in CI.
+whisper.cpp publishes no Vulkan binaries for any platform, and its CUDA builds
+are 12.4, which predates the 50-series. So the Windows job skips the whisper
+download (`SIDECAR_SKIP=whisper`) and `scripts/build-whisper-vulkan.mjs`
+compiles `whisper-cli.exe` with `-DGGML_VULKAN=ON` instead, against the Vulkan
+SDK the workflow installs. Its output replaces `bin/whisper` wholesale, because
+the CPU archive ships BLAS DLLs the Vulkan build does not and a stale
+`ggml-blas.dll` beside a Vulkan `ggml.dll` is a coin toss for the loader.
+
+`vulkan-1.dll` comes from the graphics driver, so nothing extra is bundled. If
+there is no Vulkan device, ggml registers only the CPU backend and whisper
+still runs, slowly.
+
+Linux still uses the upstream CPU whisper archive.
 
 ## Still to do
 
-- [ ] Build whisper.cpp with Vulkan in CI so Windows gets GPU transcription
+- [ ] Confirm the CI-built Vulkan whisper-cli actually picks a GPU on a real
+      Windows box (only verified on Linux here)
 - [ ] First-run screen: "chaptr needs to download about 10 GB"
 - [ ] Verify `%APPDATA%\chaptr` paths on a real Windows box
 - [ ] Confirm WebView2 is present or bootstrapped by the installer

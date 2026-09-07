@@ -17,8 +17,9 @@ const WHISPER = "b4938";
 const LLAMA = "b10830";
 const FFMPEG = "n8.1-latest";
 
-// whisper.cpp publishes no Vulkan build for Windows, so this is the CPU one.
-// It works everywhere; it is not fast. See WINDOWS.md.
+// whisper.cpp publishes no Vulkan build for any platform, so the entries below
+// are the CPU ones. scripts/build-whisper-vulkan.mjs compiles a GPU whisper-cli
+// instead, and is run with SIDECAR_SKIP=whisper set here. See WINDOWS.md.
 const sources = {
   win32: [
     {
@@ -92,8 +93,10 @@ function walk(dir) {
 
 // SIDECAR_TARGET exists so the Windows set can be exercised from a Linux box.
 const platform = process.env.SIDECAR_TARGET || (process.platform === "win32" ? "win32" : "linux");
-const wanted = sources[platform];
-if (!wanted) throw new Error(`no sidecars defined for ${process.platform}`);
+const skip = new Set((process.env.SIDECAR_SKIP || "").split(",").filter(Boolean));
+const all_sources = sources[platform];
+if (!all_sources) throw new Error(`no sidecars defined for ${process.platform}`);
+const wanted = all_sources.filter((s) => !skip.has(s.name));
 
 mkdirSync(out, { recursive: true });
 mkdirSync(cache, { recursive: true });
@@ -125,7 +128,9 @@ const required = [
   ["whisper", `whisper-cli${suffix}`],
   ["llama", `llama-server${suffix}`],
 ];
-const absent = required.filter(([d, f]) => !existsSync(join(out, d, f)));
+const absent = required
+  .filter(([d]) => !skip.has(d))
+  .filter(([d, f]) => !existsSync(join(out, d, f)));
 if (absent.length) {
   throw new Error(`missing after fetch: ${absent.map(([d, f]) => `${d}/${f}`).join(", ")}`);
 }
