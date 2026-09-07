@@ -359,10 +359,20 @@ label.inline input { padding: 0; width: auto; }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
+  /* Own compositing layer. Without it WebView2 repaints the whole window,
+     translucent backdrop and all, on every scroll frame. */
+  transform: translateZ(0);
 }
 /* min-height:0 required or the flex item refuses to shrink below content height,
    pushing half the panel past the sheet's max-height */
-.sheet-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: var(--sp-3); }
+.sheet-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--sp-3);
+  contain: paint;
+}
 .note {
   color: var(--fg-faint);
   font-size: var(--fs-sm);
