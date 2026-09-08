@@ -36,16 +36,20 @@ export function Tracks({ onClose }: { onClose: () => void }) {
 
         <div className="sheet-scroll">
           <p className="note">
-            Set what each track holds. Most setups never change, so this is
-            usually a one-off. "Listen and guess" samples three minutes from one
-            recording per layout — it does not scan the whole project, so it
-            takes seconds even on a hundred hours.
+            Tell chaptr what each track holds, so it knows which ones carry
+            speech and who is speaking. Recording setups rarely change, so this
+            is usually a one-off.
           </p>
           <p className="note">
-            The pairing that matters is <b>me</b> and <b>friends</b>. With both
-            set, chaptr transcribes them separately and can say who did what.
-            With only <b>everything mixed</b> it still works, but chaptrs come
-            out as "a player…" because nothing identifies the speaker.
+            "Listen and guess" samples three minutes from one recording per
+            layout rather than scanning the whole project, so it takes seconds
+            even on a hundred hours.
+          </p>
+          <p className="note">
+            The pair that matters is <b>me</b> and <b>friends</b>. Set both and
+            chaptr transcribes them separately, so a chaptr can say who did
+            what. With only <b>everything mixed</b> it still works, but nothing
+            identifies the speaker and chaptrs come out as "a player".
           </p>
 
           {layouts.map((l) => (
@@ -78,7 +82,7 @@ export function Tracks({ onClose }: { onClose: () => void }) {
                     </select>
                     <span className="tsample dim" title={t.sample}>
                       {heard
-                        ? t.sample.slice(0, 110) || "— nothing heard —"
+                        ? t.sample.slice(0, 110) || "nothing heard"
                         : `${t.channels} channel${t.channels === 1 ? "" : "s"}`}
                     </span>
                   </div>

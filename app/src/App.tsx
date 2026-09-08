@@ -7,6 +7,7 @@ import { Transcribes } from "./panels/Transcribes";
 import { Transcript } from "./panels/Transcript";
 import { Tracks } from "./panels/Tracks";
 import { FindChaptrs } from "./panels/FindChaptrs";
+import { Transcribe } from "./panels/Transcribe";
 import { Settings } from "./panels/Settings";
 import { UpdateToast } from "./panels/UpdateToast";
 import { useUpdater } from "./state/updater";
@@ -16,6 +17,7 @@ import { hoursMins, type JobProgress } from "./types";
 export default function App() {
   const [showTracks, setShowTracks] = useState(false);
   const [showFind, setShowFind] = useState(false);
+  const [showTranscribe, setShowTranscribe] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const s = useStore();
 
@@ -115,14 +117,14 @@ export default function App() {
             Close
           </button>
         )}
-        <button onClick={() => s.runJob("transcribe")} disabled={!lib || !!s.busy}>
+        <button onClick={() => setShowTracks(true)} disabled={!lib}>Tracks</button>
+        <button onClick={() => setShowTranscribe(true)} disabled={!lib || !!s.busy}>
           Transcribe
         </button>
         <button onClick={() => setShowFind(true)} disabled={!lib || !!s.busy}>
-          Find chaptrs
+          Chaptrs
         </button>
         {s.busy && <button className="warn" onClick={s.cancelJob}>Stop</button>}
-        <button onClick={() => setShowTracks(true)} disabled={!lib}>Tracks</button>
         <input
           className="search"
           placeholder={s.tab === "chaptrs" ? "search chaptrs  ( / )" : "search transcripts  ( / )"}
@@ -281,6 +283,7 @@ export default function App() {
 
       {showTracks && <Tracks onClose={() => setShowTracks(false)} />}
       {showFind && <FindChaptrs onClose={() => setShowFind(false)} />}
+      {showTranscribe && <Transcribe onClose={() => setShowTranscribe(false)} />}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
     </div>
   );

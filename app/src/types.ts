@@ -14,7 +14,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 
 export const ROLE_HELP: Record<Role, string> = {
   mixed: "Game, your mic and your friends all in one track",
-  game: "Game and system sound only. Never transcribed — it just produces gibberish",
+  game: "Game and system sound only. Never transcribed, it just produces gibberish",
   mic: "Only you, the person who recorded this",
   voice: "Only the other people in the call, e.g. Discord",
   ignore: "Skip this track entirely",
