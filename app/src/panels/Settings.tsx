@@ -27,7 +27,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
     getVersion().then(setVersion);
   }, []);
 
-  if (!p || !settings) return null;
+  if (!p) return null;
   const set = (patch: Partial<Prefs>) => {
     setP({ ...p, ...patch });
     // Choosing a different model changes whether anything is missing.
@@ -142,6 +142,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
             </label>
           </div>
 
+          {settings && (
           <div className="layout">
             <div className="layout-h"><b>Chaptrs — this project</b></div>
 
@@ -206,6 +207,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
               />
             </label>
           </div>
+          )}
 
           <div className="layout">
             <div className="layout-h"><b>Language model</b></div>
