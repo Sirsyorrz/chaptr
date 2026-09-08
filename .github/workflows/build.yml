@@ -45,8 +45,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
-            librsvg2-dev patchelf libssl-dev build-essential file \
-            cmake glslc libvulkan-dev
+            librsvg2-dev patchelf libssl-dev build-essential file cmake
 
       - name: Cache sidecar downloads
         uses: actions/cache@v4
@@ -60,9 +59,8 @@ jobs:
           SIDECAR_SKIP: whisper
 
       # whisper.cpp ships no Vulkan binaries, so the GPU build is compiled here.
-      # Linux gets its glslc and loader headers from apt above.
+      # The SDK is what supplies glslc; jammy has no shaderc package.
       - name: Install Vulkan SDK
-        if: matrix.name == 'windows'
         uses: jakoch/install-vulkan-sdk-action@v1.6.0
         with:
           vulkan_version: 1.4.313.2
