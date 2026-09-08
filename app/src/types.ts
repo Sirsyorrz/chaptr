@@ -180,6 +180,18 @@ export interface FileStatus {
   segments: number;
   chaptrs: number;
   transcribed: boolean;
+  missing: boolean;
+}
+
+export interface MediaReport {
+  total: number;
+  missing: string[];
+}
+
+export interface Relinked {
+  linked: number;
+  missing: string[];
+  mismatched: string[];
 }
 
 export interface TranscriptHit {

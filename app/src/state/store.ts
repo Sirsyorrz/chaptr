@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { Chaptr, FileStatus, JobProgress, Layout, Library, Project, Role, Settings, Transcript } from "../types";
+import type { Chaptr, FileStatus, JobProgress, Layout, Library, MediaReport, Project, Relinked, Role, Settings, Transcript } from "../types";
 
 const PROJECT_KEY = "chaptr.project";
 
@@ -26,6 +26,8 @@ interface State {
   runId: number;
   files: FileStatus[];
   viewing: string | null;
+  offline: string[];
+  relink: (dir: string) => Promise<void>;
   tab: "chaptrs" | "transcribes";
   setTab: (t: "chaptrs" | "transcribes") => void;
   loadLayouts: () => Promise<void>;
@@ -82,6 +84,7 @@ export const useStore = create<State>((set, get) => ({
   runId: 0,
   files: [],
   viewing: null,
+  offline: [],
   tab: "chaptrs",
 
   say: (status, statusKind = "") => set({ status, statusKind }),
@@ -98,7 +101,42 @@ export const useStore = create<State>((set, get) => ({
   refreshFiles: async () => {
     const id = get().project?.id;
     if (!id) return;
-    set({ files: await invoke<FileStatus[]>("file_status", { id }) });
+    const [files, report] = await Promise.all([
+      invoke<FileStatus[]>("file_status", { id }),
+      invoke<MediaReport>("media_report", { id }),
+    ]);
+    set({ files, offline: report.missing });
+  },
+
+  /// Points the project at footage that has moved, or arrived from someone
+  /// else's machine under different paths.
+  relink: async (dir) => {
+    const id = get().project?.id;
+    if (!id) return;
+    set({ busy: "relinking" });
+    try {
+      const r = await invoke<Relinked>("relink_media", { id, dir });
+      const library = await invoke<Library | null>("load_library", { id });
+      const projects = await invoke<Project[]>("list_projects");
+      set({ library, projects, project: projects.find((p) => p.id === id) ?? get().project, busy: "" });
+      await get().refreshFiles();
+      if (!r.linked) {
+        get().say(
+          r.mismatched.length
+            ? `no matches — ${r.mismatched[0]} is there but the file differs`
+            : "no matching recordings in that folder",
+          "warn",
+        );
+      } else {
+        get().say(
+          `linked ${r.linked} recordings` + (r.missing.length ? `, ${r.missing.length} still missing` : ""),
+          r.missing.length ? "warn" : "ok",
+        );
+      }
+    } catch (e) {
+      set({ busy: "" });
+      get().say(String(e), "warn");
+    }
   },
 
   openFile: async (recordingId) => {
@@ -195,8 +233,8 @@ export const useStore = create<State>((set, get) => ({
       const settings = await invoke<Settings>("get_settings", { id });
       const chaptrs = await invoke<Chaptr[]>("load_chaptrs", { id });
       set({ project, projects, library, settings, chaptrs, layouts: [], dirty: false, busy: "",
-            viewing: null, transcript: null });
-      get().refreshFiles();
+            viewing: null, transcript: null, offline: [] });
+      await get().refreshFiles();
       if (!library) get().say("not scanned yet — press Scan", "warn");
     } catch (e) {
       set({ busy: "" });
@@ -219,7 +257,7 @@ export const useStore = create<State>((set, get) => ({
     localStorage.removeItem(PROJECT_KEY);
     set({
       project: null, library: null, settings: null, layouts: [], chaptrs: [],
-      files: [], transcript: null, selected: null, viewing: null,
+      files: [], transcript: null, selected: null, viewing: null, offline: [],
       dirty: false, query: "", status: "", statusKind: "",
     });
   },

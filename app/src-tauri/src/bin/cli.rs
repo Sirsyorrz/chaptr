@@ -293,6 +293,31 @@ fn main() -> Result<()> {
             );
             Ok(())
         }
+        "import" if !folder.is_empty() => {
+            let file = PathBuf::from(&folder);
+            let b = chaptr::bundle::read(&file)?;
+            let p = project::open_offline(b.sources.clone())?;
+            let ws = project::workspace(&p.id);
+            chaptr::bundle::unpack(&b, &ws)?;
+            let offline = b.library.as_ref().map(|l| chaptr::media::missing(l).len()).unwrap_or(0);
+            println!(
+                "{}  id={}  {} transcripts  {} recordings offline",
+                b.name,
+                p.id,
+                b.transcripts.len(),
+                offline
+            );
+            Ok(())
+        }
+        "relink" if !folder.is_empty() => {
+            let dir = PathBuf::from(args.get(3).cloned().unwrap_or_default());
+            let ws = project::workspace(&folder);
+            let mut lib: chaptr::model::Library = workspace::read_json(&ws.library())?;
+            let r = chaptr::media::relink(&mut lib, &dir);
+            workspace::write_json(&ws.library(), &lib)?;
+            println!("linked {}, still missing {:?}", r.linked, r.missing);
+            Ok(())
+        }
         "models" => {
             let dir = std::env::var("CHAPTR_MODELS").map(PathBuf::from).unwrap_or_else(|_| {
                 std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("models"))).unwrap_or_default()

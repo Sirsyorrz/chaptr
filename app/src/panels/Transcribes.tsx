@@ -79,7 +79,7 @@ export function Transcribes() {
         {files.map((f) => (
           <div
             key={f.id}
-            className={"frow" + (viewing === f.id ? " sel" : "")}
+            className={"frow" + (viewing === f.id ? " sel" : "") + (f.missing ? " offline" : "")}
             onMouseDown={() => openFile(f.id)}
           >
             <span className="fname">{f.name}</span>
@@ -91,6 +91,11 @@ export function Transcribes() {
             <span className={"pill" + (f.chaptrs ? " ok" : "")}>
               {f.chaptrs ? `${f.chaptrs} chaptrs` : "—"}
             </span>
+            {f.missing && (
+              <span className="pill bad" title="The video file is not on this machine">
+                no file
+              </span>
+            )}
           </div>
         ))}
       </div>

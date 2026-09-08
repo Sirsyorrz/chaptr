@@ -5,6 +5,7 @@ pub mod catalogue;
 pub mod chaptrs;
 pub mod download;
 pub mod jobs;
+pub mod media;
 pub mod model;
 pub mod prefs;
 pub mod resolve;
@@ -217,6 +218,9 @@ fn resolve_goto(id: String, recording: String, offset: f64) -> Result<(), String
         .iter()
         .find(|r| r.id == recording)
         .ok_or("unknown recording")?;
+    if !media::is_present(&rec.path) {
+        return Err(format!("{} is not on this machine", rec.name));
+    }
     resolve::goto(&rec.path, offset).map_err(|e| e.to_string())
 }
 
@@ -497,6 +501,48 @@ pub struct FileStatus {
     segments: usize,
     chaptrs: usize,
     transcribed: bool,
+    /// The video file is not readable from here. The transcript still is.
+    missing: bool,
+}
+
+/// What the project can and cannot do right now, given which footage is
+/// reachable. Transcripts and chaptrs never need the media; jobs and Resolve do.
+#[derive(Serialize)]
+pub struct MediaReport {
+    total: usize,
+    missing: Vec<String>,
+}
+
+#[tauri::command]
+fn media_report(id: String) -> MediaReport {
+    match workspace::maybe_json::<Library>(&project::workspace(&id).library()) {
+        Some(lib) => MediaReport { total: lib.recordings.len(), missing: media::missing(&lib) },
+        None => MediaReport { total: 0, missing: Vec::new() },
+    }
+}
+
+/// Repoints the library at footage in `dir`, keeping every recording id so the
+/// work already done stays attached.
+#[tauri::command]
+fn relink_media(id: String, dir: String) -> Result<media::Relinked, String> {
+    let p = project::get(&id).ok_or("unknown project")?;
+    let ws = project::workspace(&id);
+    let mut lib: Library = workspace::maybe_json(&ws.library()).ok_or("nothing scanned yet")?;
+
+    let result = media::relink(&mut lib, &PathBuf::from(&dir));
+    if result.linked == 0 {
+        return Ok(result);
+    }
+
+    let sources = media::remap_sources(&lib, &p.sources, &PathBuf::from(&dir));
+    workspace::write_json(&ws.library(), &lib).map_err(|e| e.to_string())?;
+    // The id stays as it is: it identifies the working directory holding the
+    // transcripts, and rehashing it here would orphan them.
+    project::update(&id, |p| {
+        p.sources = sources;
+        p.unsaved = true;
+    });
+    Ok(result)
 }
 
 #[tauri::command]
@@ -512,6 +558,7 @@ fn file_status(id: String) -> Vec<FileStatus> {
         .map(|r| {
             let tr: Option<Transcript> = workspace::maybe_json(&ws.transcript(&r.id));
             FileStatus {
+                missing: !media::is_present(&r.path),
                 segments: tr.as_ref().map_or(0, |t| t.segments.len()),
                 transcribed: tr.is_some(),
                 chaptrs: chaptrs.iter().filter(|c| c.recording_id == r.id).count(),
@@ -564,7 +611,7 @@ fn open_project_file(path: String) -> Result<Project, String> {
     let file = PathBuf::from(&path);
     let b = bundle::read(&file).map_err(|e| e.to_string())?;
 
-    let mut p = project::open(b.sources.clone()).map_err(|e| e.to_string())?;
+    let mut p = project::open_offline(b.sources.clone()).map_err(|e| e.to_string())?;
     let ws = project::workspace(&p.id);
     bundle::unpack(&b, &ws).map_err(|e| e.to_string())?;
 
@@ -643,6 +690,8 @@ pub fn run() {
             cancel_job,
             job_status,
             file_status,
+            media_report,
+            relink_media,
             save_project,
             close_project,
             open_project_file,

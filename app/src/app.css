@@ -476,6 +476,8 @@ button.warn { border-color: var(--sel); color: var(--sel); }
   text-align: center;
 }
 .pill.ok { color: var(--ok); border-color: var(--ok); }
+.pill.bad { color: var(--bad); border-color: var(--bad); }
+.frow.offline .fname { color: var(--fg-faint); }
 
 .title {
   font-weight: 600;

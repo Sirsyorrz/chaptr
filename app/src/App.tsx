@@ -95,7 +95,16 @@ export default function App() {
     else if (typeof files === "string") s.openSources([files]);
   };
 
+  const locateFootage = async () => {
+    const dir = await openDialog({
+      directory: true,
+      title: "Where is the footage now?",
+    });
+    if (typeof dir === "string") s.relink(dir);
+  };
+
   const lib = s.library;
+  const allOffline = !!lib && s.offline.length >= lib.recordings.length;
 
   return (
     <div className="app">
@@ -118,7 +127,11 @@ export default function App() {
           </button>
         )}
         <button onClick={() => setShowTracks(true)} disabled={!lib}>Tracks</button>
-        <button onClick={() => setShowTranscribe(true)} disabled={!lib || !!s.busy}>
+        <button
+          onClick={() => setShowTranscribe(true)}
+          disabled={!lib || !!s.busy || allOffline}
+          title={allOffline ? "None of this project's footage is on this machine" : ""}
+        >
           Transcribe
         </button>
         <button onClick={() => setShowFind(true)} disabled={!lib || !!s.busy}>
@@ -174,6 +187,19 @@ export default function App() {
           </div>
         );
       })()}
+
+      {s.offline.length > 0 && (
+        <div className="banner">
+          <span>
+            {s.offline.length} of {lib?.recordings.length ?? 0} recordings are not on this
+            machine. Chaptrs and transcripts still work; playback, transcribing and
+            the Resolve jump need the files.{" "}
+          </span>
+          <button className="link" onClick={locateFootage} disabled={!!s.busy}>
+            Locate footage…
+          </button>
+        </div>
+      )}
 
       {s.job && !s.job.done && (
         <div className="jobbar">

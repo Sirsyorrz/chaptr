@@ -95,12 +95,25 @@ fn put(project: Project) -> Result<Project> {
 }
 
 pub fn open(sources: Vec<String>) -> Result<Project> {
+    open_inner(sources, true)
+}
+
+/// A bundle carries the source paths of the machine that saved it, which may be
+/// another person's drive letters. Everything the project *is* travels inside
+/// the file, so importing one must not depend on reaching the footage.
+pub fn open_offline(sources: Vec<String>) -> Result<Project> {
+    open_inner(sources, false)
+}
+
+fn open_inner(sources: Vec<String>, require_media: bool) -> Result<Project> {
     if sources.is_empty() {
         bail!("pick at least one folder or clip");
     }
-    for s in &sources {
-        if !Path::new(s).exists() {
-            bail!("{s} does not exist");
+    if require_media {
+        for s in &sources {
+            if !Path::new(s).exists() {
+                bail!("{s} does not exist");
+            }
         }
     }
 

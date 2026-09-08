@@ -98,13 +98,19 @@ pub fn transcribe_all(
         .recordings
         .iter()
         .filter(|r| !ws.transcript(&r.id).exists())
+        .filter(|r| crate::media::is_present(&r.path))
         .collect();
 
     let mut p = Progress::new("transcribe");
     p.total = todo.len();
     if todo.is_empty() {
         p.done = true;
-        p.message = "every recording is already transcribed".into();
+        let offline = crate::media::missing(&lib).len();
+        p.message = if offline > 0 {
+            format!("nothing to do: {offline} recordings are not on this machine")
+        } else {
+            "every recording is already transcribed".into()
+        };
         emit(app, &p);
         return Ok(0);
     }

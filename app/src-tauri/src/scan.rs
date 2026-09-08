@@ -40,7 +40,7 @@ fn parse_stamp(name: &str) -> Option<DateTime<Local>> {
 }
 
 /// Stable across runs and machines: path basename plus byte size.
-fn recording_id(path: &Path, size: u64) -> String {
+pub fn recording_id(path: &Path, size: u64) -> String {
     let name = path.file_name().unwrap_or_default().to_string_lossy();
     let digest = blake3::hash(format!("{name}:{size}").as_bytes());
     digest.to_hex()[..12].to_string()
