@@ -40,12 +40,20 @@ jobs:
         with:
           workspaces: app/src-tauri
 
+      # glslc comes from LunarG: jammy predates shaderc in the Ubuntu archive,
+      # and LunarG no longer publishes the generic SDK tarball the Windows
+      # action downloads.
       - name: Install Linux build dependencies
         if: matrix.name == 'linux'
         run: |
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc \
+            | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc > /dev/null
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list \
+            https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
-            librsvg2-dev patchelf libssl-dev build-essential file cmake
+            librsvg2-dev patchelf libssl-dev build-essential file cmake \
+            shaderc libvulkan-dev
 
       - name: Cache sidecar downloads
         uses: actions/cache@v4
@@ -59,8 +67,8 @@ jobs:
           SIDECAR_SKIP: whisper
 
       # whisper.cpp ships no Vulkan binaries, so the GPU build is compiled here.
-      # The SDK is what supplies glslc; jammy has no shaderc package.
       - name: Install Vulkan SDK
+        if: matrix.name == 'windows'
         uses: jakoch/install-vulkan-sdk-action@v1.6.0
         with:
           vulkan_version: 1.4.313.2
