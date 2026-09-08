@@ -6,9 +6,6 @@ __pycache__/
 # sidecar binaries and model weights, symlinked in dev
 app/src-tauri/target/
 
-# working notes, kept local
-plan2.md
-BENCHMARKS.md
 
 # fetched sidecars and their download cache
 app/src-tauri/bin/
