@@ -6,13 +6,6 @@ import type { Prefs } from "../types";
 import { ModelPicker, VadNotice } from "./ModelStore";
 import { useUpdater } from "../state/updater";
 
-const PROVIDERS: { id: Prefs["cloud_provider"]; name: string; hint: string }[] = [
-  { id: "anthropic", name: "Anthropic", hint: "claude-sonnet-4-20250514" },
-  { id: "openai", name: "OpenAI", hint: "gpt-4.1-mini" },
-  { id: "google", name: "Google", hint: "gemini-2.5-flash" },
-  { id: "compatible", name: "OpenAI-compatible", hint: "needs a base URL" },
-];
-
 export function Settings({ onClose }: { onClose: () => void }) {
   const settings = useStore((s) => s.settings);
   const saveSettings = useStore((s) => s.saveSettings);
@@ -23,7 +16,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const [version, setVersion] = useState("");
 
   useEffect(() => {
-    invoke<Prefs>("get_prefs").then(setP);
+    invoke<Prefs>("get_prefs").then((prefs) =>
+      setP(prefs.engine === "cloud" ? { ...prefs, engine: "local" } : prefs),
+    );
     getVersion().then(setVersion);
   }, []);
 
@@ -212,91 +207,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
           <div className="layout">
             <div className="layout-h"><b>Language model</b></div>
 
-            <div className="row tabs-inline">
-              <button
-                className={p.engine === "local" ? "on" : ""}
-                onClick={() => set({ engine: "local" })}
-              >
-                On this machine
-              </button>
-              <button
-                className={p.engine === "cloud" ? "on" : ""}
-                onClick={() => set({ engine: "cloud" })}
-              >
-                Cloud API
-              </button>
-            </div>
+            <ModelPicker
+              kind="language"
+              label="Quality"
+              chosen={p.local_model}
+              onChoose={(local_model) => set({ local_model })}
+            />
 
-            {p.engine === "local" && (
-              <ModelPicker
-                kind="language"
-                label="Quality"
-                chosen={p.local_model}
-                onChoose={(local_model) => set({ local_model })}
-              />
-            )}
-
-            {p.engine === "cloud" && (
-              <>
-                <p className="note">
-                  Roughly 6 requests per hour of footage, about 1.5k tokens each.
-                  A hundred hours is on the order of a million input tokens —
-                  cheap on a small model, not free on a large one. Keys are
-                  stored on this machine only and never go into a project file.
-                </p>
-                <label className="field">
-                  <b>Provider</b>
-                  <select
-                    value={p.cloud_provider}
-                    onChange={(e) => set({ cloud_provider: e.target.value as Prefs["cloud_provider"] })}
-                  >
-                    {PROVIDERS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-                  </select>
-                </label>
-                <label className="field">
-                  <b>Model</b>
-                  <span className="note">
-                    e.g. {PROVIDERS.find((x) => x.id === p.cloud_provider)?.hint}
-                  </span>
-                  <input
-                    className="wide"
-                    value={p.cloud_model}
-                    onChange={(e) => set({ cloud_model: e.target.value })}
-                  />
-                </label>
-                <label className="field">
-                  <b>API key</b>
-                  <input
-                    className="wide"
-                    type="password"
-                    placeholder="stored on this machine only"
-                    value={
-                      p.cloud_provider === "anthropic" ? p.anthropic_key
-                      : p.cloud_provider === "google" ? p.google_key
-                      : p.openai_key
-                    }
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (p.cloud_provider === "anthropic") set({ anthropic_key: v });
-                      else if (p.cloud_provider === "google") set({ google_key: v });
-                      else set({ openai_key: v });
-                    }}
-                  />
-                </label>
-                {p.cloud_provider === "compatible" && (
-                  <label className="field">
-                    <b>Base URL</b>
-                    <span className="note">Anything speaking the OpenAI chat format.</span>
-                    <input
-                      className="wide"
-                      placeholder="https://openrouter.ai/api/v1"
-                      value={p.cloud_base_url}
-                      onChange={(e) => set({ cloud_base_url: e.target.value })}
-                    />
-                  </label>
-                )}
-              </>
-            )}
           </div>
         </div>
       </div>
