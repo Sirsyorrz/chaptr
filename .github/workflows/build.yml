@@ -27,6 +27,29 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Release notes are built from the log, which a shallow clone lacks.
+          fetch-depth: 0
+
+      - name: Collect release notes
+        id: notes
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          prev=$(git tag --sort=-creatordate | grep -v "^${tag}$" | head -1)
+          if [ -n "$prev" ]; then
+            log=$(git log --no-merges --pretty=format:'- %s' "$prev..HEAD" \
+              | grep -Ev '^- (release |ci:|git ignore)' || true)
+            range="Changes since $prev"
+          else
+            log=$(git log --no-merges --pretty=format:'- %s' | head -30)
+            range="Changes"
+          fi
+          {
+            echo 'body<<CHAPTR_EOF'
+            if [ -n "$log" ]; then printf '%s\n\n%s\n' "$range" "$log"; fi
+            echo 'CHAPTR_EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
         with:
@@ -98,6 +121,7 @@ jobs:
           args: ${{ matrix.args }}
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: chaptr ${{ github.ref_name }}
+          releaseBody: ${{ steps.notes.outputs.body }}
           # latest.json is what installed copies poll, and a draft release does
           # not serve it, so tags publish straight away.
           includeUpdaterJson: true
