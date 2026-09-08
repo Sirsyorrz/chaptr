@@ -11,6 +11,10 @@ interface Props {
   onChoose: (file: string) => void;
 }
 
+/** Filename to the model's actual published name, e.g. Qwen3-8B-Q4_K_M. */
+const modelName = (file: string) =>
+  file.replace(/\.(gguf|bin)$/i, "").replace(/^ggml-/, "");
+
 /**
  * A quality ladder rather than a list of filenames. Picking a tier that is not
  * downloaded yet offers the download right there.
@@ -57,12 +61,13 @@ export function ModelPicker({ kind, label, chosen, onChoose }: Props) {
       <select value={current.file} onChange={(e) => onChoose(e.target.value)}>
         {tiers.map((t) => (
           <option key={t.id} value={t.file}>
-            {t.tier_name} — {gb(t.bytes)}
+            {t.tier_name} — {modelName(t.file)} — {gb(t.bytes)}
             {t.installed ? "" : " (not downloaded)"}
           </option>
         ))}
       </select>
 
+      <span className="note mono dim">{current.file}</span>
       <span className="note">{current.note}</span>
       <span className="note">
         {current.speed && <>Speed: {current.speed}. </>}
@@ -132,7 +137,7 @@ export function VadNotice() {
   if (!entry || entry.installed) return null;
   return (
     <p className="note warn">
-      Voice detection ({gb(entry.bytes)}) is missing. Transcripts will fill with
+      Voice detection ({modelName(entry.file)}, {gb(entry.bytes)}) is missing. Transcripts will fill with
       repeated nonsense during silence without it.{" "}
       <button
         disabled={!!busy}
