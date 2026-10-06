@@ -1,0 +1,30 @@
+name: badge
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+jobs:
+  downloads:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      # Shields can't filter assets by name, so the count is computed here and
+      # served as an endpoint badge from the badges branch.
+      - name: Count installer downloads
+        run: |
+          set -euo pipefail
+          count=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+            --jq '.[].assets[] | select((.name | test("\\.(exe|AppImage|deb)$")) and (.name | startswith("update-") | not)) | .download_count' \
+            | awk '{s+=$1} END {print s+0}')
+          mkdir out
+          printf '{"schemaVersion":1,"label":"downloads","message":"%s","color":"blue"}\n' "$count" > out/downloads.json
+          cd out
+          git init -q -b badges
+          git add downloads.json
+          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -qm "update download count"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" badges
