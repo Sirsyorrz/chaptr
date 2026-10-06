@@ -1,5 +1,7 @@
 # chaptr
 
+[![downloads](https://img.shields.io/github/downloads/Sirsyorrz/chaptr/total)](https://github.com/Sirsyorrz/chaptr/releases)
+
 Point it at gameplay recordings. It transcribes them locally and writes a
 searchable, timestamped play-by-play, so you can find the moments worth cutting
 without scrubbing a hundred hours by hand.
