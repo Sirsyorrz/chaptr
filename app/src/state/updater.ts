@@ -31,7 +31,7 @@ export const useUpdater = create<UpdaterState>((set, get) => ({
       if (found) set({ update: found, phase: "found" });
       else set({ phase: loud ? "error" : "idle", error: loud ? "already up to date" : "" });
     } catch (e) {
-      set({ phase: loud ? "error" : "idle", error: loud ? String(e) : "" });
+      set({ phase: loud ? "error" : "idle", error: loud ? `update check failed: ${e}` : "" });
     }
   },
 
@@ -51,7 +51,7 @@ export const useUpdater = create<UpdaterState>((set, get) => ({
       });
       set({ phase: "ready" });
     } catch (e) {
-      set({ phase: "error", error: String(e) });
+      set({ phase: "error", error: `update failed: ${e}` });
     }
   },
 

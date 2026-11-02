@@ -9,7 +9,7 @@ import { Tracks } from "./panels/Tracks";
 import { FindChaptrs } from "./panels/FindChaptrs";
 import { Transcribe } from "./panels/Transcribe";
 import { Settings } from "./panels/Settings";
-import { UpdateToast } from "./panels/UpdateToast";
+import { Updater } from "./panels/Updater";
 import { useUpdater } from "./state/updater";
 import wordmark from "./assets/wordmark.png";
 import { hoursMins, type JobProgress } from "./types";
@@ -286,6 +286,7 @@ export default function App() {
       )}
 
       <div className="statusbar">
+        <Updater />
         <span>
           {lib
             ? `${lib.recordings.length} recordings · ${lib.sessions.length} sessions · ${hoursMins(lib.total_duration)}`
@@ -304,8 +305,6 @@ export default function App() {
         <span className="dim">/ search · j k move · f favourite · ctrl+S save</span>
         <span className={s.statusKind}>{s.status}</span>
       </div>
-
-      <UpdateToast />
 
       {showTracks && <Tracks onClose={() => setShowTracks(false)} />}
       {showFind && <FindChaptrs onClose={() => setShowFind(false)} />}
