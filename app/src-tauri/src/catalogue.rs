@@ -85,15 +85,15 @@ pub const ENTRIES: &[Entry] = &[
     Entry {
         id: "chaptr-large", file: "Qwen3-14B-Q4_K_M.gguf", kind: Kind::Language,
         name: "Large", tier: 3, tier_name: "Large",
-        note: "The right default for a 16 GB card. Noticeably vaguer than Extreme, but dependable.",
+        note: "Fits entirely on a 16 GB card. Noticeably vaguer than Extreme, but dependable.",
         bytes: 9_001_753_984, vram: 14, required: true, speed: "about 3s per 10 minutes of footage",
         url: "https://huggingface.co/unsloth/Qwen3-14B-GGUF/resolve/main/Qwen3-14B-Q4_K_M.gguf",
     },
     Entry {
         id: "chaptr-extreme", file: "Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf", kind: Kind::Language,
         name: "Extreme", tier: 4, tier_name: "Extreme",
-        note: "Clearly the best in testing and, oddly, the fastest: only a fraction of it runs per word. Names people twice as often as the 14B.",
-        bytes: 18_600_000_000, vram: 22, required: false, speed: "fast for its size",
+        note: "Clearly the best in testing and, oddly, the fastest: only a fraction of it runs per word. Names people twice as often as the 14B. On cards under 24 GB part of it runs from system RAM, so it wants about 16 GB of that free.",
+        bytes: 18_600_000_000, vram: 12, required: false, speed: "fast for its size",
         url: "https://huggingface.co/unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF/resolve/main/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
     },
 ];

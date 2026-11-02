@@ -114,7 +114,12 @@ impl Llm {
 
         let child = sidecar::command(&sc.llama)
             .arg("-m").arg(&cfg.model)
-            .args(["-ngl", "99"])
+            // No -ngl: setting it disables llama.cpp's auto-fit, which is what
+            // lets an MoE model too big for VRAM park its experts in system RAM.
+            // With experts on the CPU, prompt processing is bound by ubatch size
+            // and mmap paging; these two took a 10-minute window from ~14s to ~1s.
+            .args(["-ub", "4096", "-b", "4096"])
+            .args(["--load-mode", "none"])
             .args(["-c", &cfg.context.to_string()])
             .args(["--port", &cfg.port.to_string()])
             .args(["--host", "127.0.0.1"])
